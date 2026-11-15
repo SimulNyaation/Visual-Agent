@@ -1,0 +1,10 @@
+{
+  "name": "visual-agent",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "build": "node scripts/check.mjs --build-only",
+    "start": "node -e \"require('child_process').spawn('build/dist/Visual-Agent/Visual-Agent.exe',{detached:true,stdio:'ignore'}).unref()\""
+  }
+}

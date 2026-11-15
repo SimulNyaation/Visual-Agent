@@ -1,0 +1,274 @@
+/* 색은 design/theme-kirin.css의 토큰만 쓴다. 색 값을 직접 쓰면 품질 게이트가 실패한다. */
+
+:root {
+  --titlebar-height: 40px;
+  --sidebar-width: 240px;
+  --font-sans: "IBM Plex Sans KR", "Malgun Gothic", sans-serif;
+  --font-mono: "IBM Plex Mono", Consolas, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-1);
+  color: var(--text-1);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+  user-select: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--ochre);
+  outline-offset: -2px;
+}
+
+p {
+  margin: 0;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* 제목 표시줄: 빈 곳을 끌면 창이 움직인다 */
+.titlebar {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  height: var(--titlebar-height);
+  /* 오른쪽은 창 버튼 자리와, 탭이 많아도 창을 끌 수 있게 남겨 두는 빈 곳 */
+  padding-right: calc(var(--caption-width, 0px) + 96px);
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.tabstrip {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.tab {
+  flex: none;
+  display: flex;
+  align-items: center;
+  max-width: 240px;
+  border-right: 1px solid var(--line);
+  color: var(--text-2);
+}
+
+.tab:hover {
+  background: var(--bg-3);
+}
+
+.tab--selected {
+  background: var(--bg-1);
+  color: var(--text-1);
+  box-shadow: inset 0 2px 0 var(--ochre);
+}
+
+.tab--selected:hover {
+  background: var(--bg-1);
+}
+
+.tab__select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px 0 14px;
+}
+
+.tab__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab__missing {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rust);
+}
+
+.tab__close {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-right: 8px;
+  border-radius: 4px;
+  color: var(--text-3);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.tab__close:hover {
+  background: var(--line);
+  color: var(--text-1);
+}
+
+.titlebar__add {
+  flex: none;
+  width: 40px;
+  color: var(--text-2);
+  font-size: 18px;
+  line-height: 1;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.titlebar__add:hover {
+  background: var(--bg-3);
+  color: var(--text-1);
+}
+
+.notice {
+  flex: none;
+  padding: 6px 16px;
+  background: var(--bg-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--rust);
+  font-size: 13px;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.sidebar {
+  flex: none;
+  width: var(--sidebar-width);
+  padding: 14px 12px;
+  background: var(--bg-2);
+  border-right: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.sidebar__project {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  font-weight: 600;
+}
+
+.sidebar__mark {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--patch);
+}
+
+.sidebar__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workarea {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.workarea__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  color: var(--text-3);
+  text-align: center;
+}
+
+.workarea__project {
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.workarea__alert {
+  color: var(--rust);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.workarea__path {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  user-select: text;
+}
+
+.picker {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+}
+
+.picker__title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.picker__hint {
+  color: var(--text-3);
+}
+
+.picker__button {
+  margin-top: 14px;
+  padding: 8px 22px;
+  border-radius: 6px;
+  background: var(--acacia);
+  color: var(--bg-0);
+  font-weight: 600;
+}
+
+.picker__button:hover {
+  background: var(--sage);
+}
