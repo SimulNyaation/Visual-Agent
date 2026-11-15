@@ -1,0 +1,25 @@
+# 개인 내용 (별도 비공개 저장소)
+/private/
+
+# 자격 증명
+.env
+.env.*
+*.token
+*.pem
+
+# 빌드 산출물
+/build/
+/out/
+/core/build/
+/ui/dist/
+node_modules/
+vcpkg_installed/
+
+# 편집기
+.vs/
+.vscode/
+*.user
+
+# 명세에는 대화 원문이 인용된다. 공개 여부 확정 전까지 양식만 올린다
+/.season0/specs/*
+!/.season0/specs/_TEMPLATE/
