@@ -8,7 +8,8 @@ param(
     [int]$Y = 0,
     [int]$Hit = 0,
     [int]$Width = 0,
-    [int]$Height = 0
+    [int]$Height = 0,
+    [switch]$Caption
 )
 
 Add-Type @'
@@ -69,6 +70,14 @@ $process = Get-Process -Id $ProcessId -ErrorAction Stop
 $hwnd = $process.MainWindowHandle
 if ($hwnd -eq [IntPtr]::Zero) { throw "프로세스 $ProcessId 의 창을 찾을 수 없습니다." }
 
+# -Caption을 주면 앱 창 대신 그 위에 얹힌 창 버튼 영역에 신호를 보낸다
+function Target {
+    if (-not $Caption) { return $hwnd }
+    $child = [VaProbe]::FindWindowEx($hwnd, [IntPtr]::Zero, "VisualAgentCaption", $null)
+    if ($child -eq [IntPtr]::Zero) { throw "caption window not found" }
+    return $child
+}
+
 function ToLParam([int]$px, [int]$py) { [IntPtr]((($py -band 0xFFFF) -shl 16) -bor ($px -band 0xFFFF)) }
 
 $WM_NCHITTEST = 0x0084; $WM_NCLBUTTONDOWN = 0x00A1; $WM_NCLBUTTONUP = 0x00A2; $WM_CLOSE = 0x0010
@@ -91,12 +100,12 @@ switch ($Action) {
         } | ConvertTo-Json -Compress
     }
     "hit" {
-        $code = [VaProbe]::SendMessage($hwnd, $WM_NCHITTEST, [IntPtr]::Zero, (ToLParam $X $Y))
+        $code = [VaProbe]::SendMessage((Target), $WM_NCHITTEST, [IntPtr]::Zero, (ToLParam $X $Y))
         @{ hit = $code.ToInt64() } | ConvertTo-Json -Compress
     }
     "ncclick" {
-        [void][VaProbe]::SendMessage($hwnd, $WM_NCLBUTTONDOWN, [IntPtr]$Hit, [IntPtr]::Zero)
-        [void][VaProbe]::SendMessage($hwnd, $WM_NCLBUTTONUP, [IntPtr]$Hit, [IntPtr]::Zero)
+        [void][VaProbe]::SendMessage((Target), $WM_NCLBUTTONDOWN, [IntPtr]$Hit, [IntPtr]::Zero)
+        [void][VaProbe]::SendMessage((Target), $WM_NCLBUTTONUP, [IntPtr]$Hit, [IntPtr]::Zero)
         @{ ok = $true } | ConvertTo-Json -Compress
     }
     "close" {

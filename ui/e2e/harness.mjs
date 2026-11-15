@@ -12,6 +12,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const exePath = join(repoRoot, "build", "dist", "Visual-Agent", "Visual-Agent.exe");
 const probeScript = join(repoRoot, "scripts", "window-probe.ps1");
 const captureScript = join(repoRoot, "scripts", "capture-window.ps1");
+const mouseScript = join(repoRoot, "scripts", "mouse-probe.ps1");
 const evidenceDir = process.env.VA_EVIDENCE_DIR;
 
 const pause = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -33,6 +34,15 @@ function freePort() {
       server.close(() => done(port));
     });
   });
+}
+
+/** 실제 마우스 입력을 보낸다 (화면 좌표). 커서 아래가 앱 창이 아니면 누르지 않고 실패한다 */
+export function mouse(pid, action, x, y, dx = 0, dy = 0) {
+  const result = JSON.parse(powershell([
+    "-File", mouseScript, "-ProcessId", String(pid), "-Action", action,
+    "-X", String(Math.round(x)), "-Y", String(Math.round(y)), "-DX", String(dx), "-DY", String(dy),
+  ]));
+  if (!result.ok) throw new Error(`마우스 입력을 보내지 못했습니다: ${result.reason}`);
 }
 
 /** 테스트용 폴더 묶음: 설정 폴더와 프로젝트로 쓸 폴더들 */
@@ -123,8 +133,10 @@ export async function launchApp(sandbox) {
     pickNext: (folder) => picks.push(folder),
     info: () => probe("info"),
     hit: (x, y) => probe("hit", ["-X", String(Math.round(x)), "-Y", String(Math.round(y))]).hit,
-    /** 창 버튼(최소화 8, 최대화 9, 닫기 20)을 누른 것과 같은 신호를 보낸다 */
-    clickCaption: (code) => probe("ncclick", ["-Hit", String(code)]),
+    /** 창 버튼 영역이 그 점을 무엇이라고 답하는지 (최소화 8, 최대화 9, 닫기 20) */
+    hitCaption: (x, y) => probe("hit", ["-Caption", "-X", String(Math.round(x)), "-Y", String(Math.round(y))]).hit,
+    /** 창 버튼 영역에 누름 신호를 보낸다. 실제 클릭이 버튼까지 도달하는지는 caption.e2e.mjs가 확인한다 */
+    clickCaption: (code) => probe("ncclick", ["-Caption", "-Hit", String(code)]),
     restore: () => probe("restore"),
     /** 떠 있는 폴더 선택 창의 제목. 없으면 undefined */
     dialogTitle() {
@@ -138,7 +150,14 @@ export async function launchApp(sandbox) {
       if (!evidenceDir) return;
       powershell(["-File", captureScript, "-ProcessId", String(child.pid), "-Out", join(evidenceDir, name)]);
     },
-    waitForExit: () => exited,
+    /** 앱이 끝날 때까지 기다린다. 시간 안에 끝나지 않으면 실패한다 */
+    waitForExit: (timeoutMs = 10000) =>
+      Promise.race([
+        exited,
+        pause(timeoutMs).then(() => {
+          throw new Error(`앱이 ${timeoutMs / 1000}초 안에 종료되지 않았습니다`);
+        }),
+      ]),
     /** 닫기 신호를 보내고 끝날 때까지 기다린다 */
     async close() {
       if (child.exitCode === null) {
@@ -147,6 +166,10 @@ export async function launchApp(sandbox) {
         } catch {
           child.kill();
         }
+      }
+      if (child.exitCode === null) {
+        await Promise.race([exited, pause(5000)]);
+        if (child.exitCode === null) child.kill();
       }
       await exited;
       await browser.close().catch(() => undefined);

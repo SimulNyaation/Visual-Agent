@@ -35,6 +35,8 @@ private:
 
     LRESULT handle(UINT message, WPARAM wParam, LPARAM lParam);
     LRESULT hitTest(LPARAM lParam);
+    LRESULT captionHitTest(LPARAM lParam);
+    bool handleCaptionMouse(UINT message, WPARAM wParam);
     void layout();
     void paintCaption(HWND caption);
     void setCaptionHover(CaptionButton button);

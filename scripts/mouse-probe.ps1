@@ -3,7 +3,7 @@
 # 사용: mouse-probe.ps1 -ProcessId <pid> -Action drag|doubleclick -X n -Y n [-DX n -DY n]   (화면 좌표)
 param(
     [Parameter(Mandatory = $true)][int]$ProcessId,
-    [Parameter(Mandatory = $true)][ValidateSet("drag", "doubleclick")][string]$Action,
+    [Parameter(Mandatory = $true)][ValidateSet("drag", "doubleclick", "click")][string]$Action,
     [Parameter(Mandatory = $true)][int]$X,
     [Parameter(Mandatory = $true)][int]$Y,
     [int]$DX = 0,
@@ -60,6 +60,10 @@ try {
             Start-Sleep -Milliseconds 25
         }
         Start-Sleep -Milliseconds 120
+        [VaMouse]::mouse_event($LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
+    } elseif ($Action -eq "click") {
+        [VaMouse]::mouse_event($LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 80
         [VaMouse]::mouse_event($LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
     } else {
         foreach ($click in 1, 2) {

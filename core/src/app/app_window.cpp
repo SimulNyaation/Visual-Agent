@@ -265,15 +265,47 @@ LRESULT AppWindow::hitTest(LPARAM lParam) {
         if (point.x >= client.right - scale(kCornerWidth)) return HTTOPRIGHT;
         return HTTOP;
     }
-
-    const RECT caption = captionRect();
-    if (PtInRect(&caption, point)) {
-        const int index = (point.x - caption.left) / scale(kCaptionButtonWidth);
-        if (index <= kMinimize) return HTMINBUTTON;
-        if (index == kMaximize) return HTMAXBUTTON;
-        return HTCLOSE;
-    }
     return HTCLIENT;
+}
+
+// 창 버튼 위의 점(화면 좌표)이 어느 버튼인지 답한다
+LRESULT AppWindow::captionHitTest(LPARAM lParam) {
+    POINT point{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+    ScreenToClient(caption_, &point);
+    const int index = point.x / scale(kCaptionButtonWidth);
+    if (index <= kMinimize) return HTMINBUTTON;
+    if (index == kMaximize) return HTMAXBUTTON;
+    return HTCLOSE;
+}
+
+// 창 버튼 위에서 일어난 마우스 입력을 처리한다. 처리했으면 true
+bool AppWindow::handleCaptionMouse(UINT message, WPARAM wParam) {
+    const CaptionButton button = wParam == HTMINBUTTON   ? kMinimize
+                                 : wParam == HTMAXBUTTON ? kMaximize
+                                 : wParam == HTCLOSE     ? kClose
+                                                         : kNone;
+    switch (message) {
+        case WM_NCMOUSEMOVE: {
+            setCaptionHover(button);
+            TRACKMOUSEEVENT track{sizeof(TRACKMOUSEEVENT), TME_LEAVE | TME_NONCLIENT, caption_, 0};
+            TrackMouseEvent(&track);
+            return true;
+        }
+        case WM_NCMOUSELEAVE:
+            pressed_ = kNone;
+            hover_ = kNone;
+            InvalidateRect(caption_, nullptr, FALSE);
+            return true;
+        case WM_NCLBUTTONDOWN:
+        case WM_NCLBUTTONDBLCLK:
+            pressCaption(button);
+            return true;
+        case WM_NCLBUTTONUP:
+            releaseCaption(button);
+            return true;
+        default:
+            return false;
+    }
 }
 
 void AppWindow::setCaptionHover(CaptionButton button) {
@@ -358,34 +390,6 @@ LRESULT AppWindow::handle(UINT message, WPARAM wParam, LPARAM lParam) {
         }
         case WM_NCHITTEST:
             return hitTest(lParam);
-        case WM_NCMOUSEMOVE: {
-            const CaptionButton button = wParam == HTMINBUTTON   ? kMinimize
-                                         : wParam == HTMAXBUTTON ? kMaximize
-                                         : wParam == HTCLOSE     ? kClose
-                                                                 : kNone;
-            setCaptionHover(button);
-            if (button != kNone) {
-                TRACKMOUSEEVENT track{sizeof(TRACKMOUSEEVENT), TME_LEAVE | TME_NONCLIENT, hwnd_, 0};
-                TrackMouseEvent(&track);
-            }
-            break;
-        }
-        case WM_NCMOUSELEAVE:
-            pressed_ = kNone;
-            setCaptionHover(kNone);
-            InvalidateRect(caption_, nullptr, FALSE);
-            break;
-        case WM_NCLBUTTONDOWN:
-        case WM_NCLBUTTONDBLCLK:
-            if (wParam == HTMINBUTTON) return pressCaption(kMinimize), 0;
-            if (wParam == HTMAXBUTTON) return pressCaption(kMaximize), 0;
-            if (wParam == HTCLOSE) return pressCaption(kClose), 0;
-            break;
-        case WM_NCLBUTTONUP:
-            if (wParam == HTMINBUTTON) return releaseCaption(kMinimize), 0;
-            if (wParam == HTMAXBUTTON) return releaseCaption(kMaximize), 0;
-            if (wParam == HTCLOSE) return releaseCaption(kClose), 0;
-            break;
         case WM_SIZE:
             layout();
             return 0;
@@ -448,9 +452,17 @@ LRESULT CALLBACK AppWindow::captionProc(HWND hwnd, UINT message, WPARAM wParam, 
     auto* self = reinterpret_cast<AppWindow*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
     switch (message) {
         case WM_NCHITTEST:
-            // 마우스 입력을 앱 창으로 넘겨, 창이 "최소화·최대화·닫기 버튼 위"라고 답하게 한다.
-            // Windows 11의 창 배치 메뉴는 그 답을 보고 뜬다
-            return HTTRANSPARENT;
+            // "최소화·최대화·닫기 버튼 위"라고 직접 답한다. 입력을 아래 창으로 넘기면(HTTRANSPARENT)
+            // 다른 프로세스가 그리는 화면(WebView2)이 클릭을 가져가 버튼이 눌리지 않는다
+            if (self) return self->captionHitTest(lParam);
+            break;
+        case WM_NCMOUSEMOVE:
+        case WM_NCMOUSELEAVE:
+        case WM_NCLBUTTONDOWN:
+        case WM_NCLBUTTONDBLCLK:
+        case WM_NCLBUTTONUP:
+            if (self && self->handleCaptionMouse(message, wParam)) return 0;
+            break;
         case WM_PAINT:
             if (self) {
                 self->paintCaption(hwnd);

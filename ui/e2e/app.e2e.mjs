@@ -1,4 +1,6 @@
 // 실제 앱 창으로 인수 기준을 확인한다. 실행: npm run e2e (먼저 앱을 빌드해야 한다)
+// 여기서는 마우스 커서를 움직이지 않는다. 창 버튼과 창 끌기는 신호를 보내 확인하므로,
+// 사용자의 실제 클릭이 같은 곳에 도달하는지는 npm run e2e:mouse (caption.e2e.mjs, mouse.e2e.mjs)로 따로 확인한다.
 import assert from "node:assert/strict";
 import { rmSync } from "node:fs";
 import { after, before, describe, test } from "node:test";
@@ -170,12 +172,12 @@ describe("앱 뼈대", () => {
     };
     assert.deepEqual(hits, { top: HT.top, topLeft: HT.topLeft, topRight: HT.topRight, left: HT.left, right: HT.right, bottom: HT.bottom, bottomLeft: HT.bottomLeft, bottomRight: HT.bottomRight });
 
-    // AC16·AC18: 창 버튼 자리는 Windows에 최소화·최대화·닫기 버튼으로 알려진다
+    // AC16·AC18: 창 버튼 영역은 마우스 입력을 아래로 넘기지 않고(-1이 아님) 직접 최소화·최대화·닫기 버튼이라고 답한다
     const buttonY = client.top + 24 * scale;
     const buttons = {
-      minimize: app.hit(client.right - 115 * scale, buttonY),
-      maximize: app.hit(client.right - 69 * scale, buttonY),
-      close: app.hit(client.right - 23 * scale, buttonY),
+      minimize: app.hitCaption(client.right - 115 * scale, buttonY),
+      maximize: app.hitCaption(client.right - 69 * scale, buttonY),
+      close: app.hitCaption(client.right - 23 * scale, buttonY),
     };
     assert.deepEqual(buttons, { minimize: HT.minimize, maximize: HT.maximize, close: HT.close });
   });

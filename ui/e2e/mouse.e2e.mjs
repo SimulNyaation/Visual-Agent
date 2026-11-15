@@ -1,24 +1,8 @@
 // 실제 마우스 입력으로 창 끌기·더블클릭·크기 조절을 확인한다.
 // 커서를 몇 초 동안 움직이므로 품질 게이트에는 넣지 않는다. 실행: npm run e2e:mouse
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { dirname, join, resolve } from "node:path";
 import { after, before, describe, test } from "node:test";
-import { fileURLToPath } from "node:url";
-import { createSandbox, launchApp, waitUntil } from "./harness.mjs";
-
-const mouseScript = join(resolve(dirname(fileURLToPath(import.meta.url)), "..", ".."), "scripts", "mouse-probe.ps1");
-
-function mouse(pid, action, x, y, dx = 0, dy = 0) {
-  const output = execFileSync(
-    "powershell.exe",
-    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", mouseScript, "-ProcessId", String(pid), "-Action", action,
-      "-X", String(Math.round(x)), "-Y", String(Math.round(y)), "-DX", String(dx), "-DY", String(dy)],
-    { encoding: "utf8" },
-  ).trim();
-  const result = JSON.parse(output);
-  assert.ok(result.ok, `마우스 입력을 보내지 못했습니다: ${result.reason}`);
-}
+import { createSandbox, launchApp, mouse, waitUntil } from "./harness.mjs";
 
 describe("창 다루기 (실제 마우스)", () => {
   let sandbox;
