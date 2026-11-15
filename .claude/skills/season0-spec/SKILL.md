@@ -5,7 +5,7 @@ description: 원문 요청(비전문가 표현, 전문 용어 혼용 모두 허�
 
 # 요구사항 명세화
 
-원문 요청을 `.season0/specs/<ID>/spec.md`로 변환한다. **이 스킬은 구현하지 않으며 코드 파일을 변경하지 않는다.**
+원문 요청을 `private/specs/<ID>/spec.md`로 변환한다. **이 스킬은 구현하지 않으며 코드 파일을 변경하지 않는다.**
 
 ## 절차
 
@@ -16,7 +16,7 @@ description: 원문 요청(비전문가 표현, 전문 용어 혼용 모두 허�
    - 관련 코드: 가정 사항의 근거 확보 목적으로만 열람
 
 2. **명세 생성**
-   - `.season0/specs/_TEMPLATE/spec.md`를 복제해 `SPEC-YYYYMMDD-slug/spec.md` 생성
+   - `.season0/specs/_TEMPLATE/spec.md`를 복제해 `private/specs/SPEC-YYYYMMDD-slug/spec.md` 생성
    - `status: draft`
 
 3. **항목 작성**

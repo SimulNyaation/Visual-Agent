@@ -5,7 +5,7 @@ description: 구현이 완료된 Season0 명세(status verifying)에 대해 인�
 
 # 검증
 
-`.season0/specs/<ID>/verification.md`와 `.season0/specs/<ID>/evidence/`를 생성한다. 증적 인정 기준은 `.season0/core/verification.md`를 따른다.
+`private/specs/<ID>/verification.md`와 `private/specs/<ID>/evidence/`를 생성한다. 증적 인정 기준은 `.season0/core/verification.md`를 따른다.
 
 ## 절차
 

@@ -20,6 +20,3 @@ vcpkg_installed/
 .vscode/
 *.user
 
-# 명세에는 대화 원문이 인용된다. 공개 여부 확정 전까지 양식만 올린다
-/.season0/specs/*
-!/.season0/specs/_TEMPLATE/
