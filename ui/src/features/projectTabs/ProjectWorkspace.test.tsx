@@ -1,59 +1,26 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import type { ProjectTabsApi } from "../../data/apiClient";
-import type { ProjectTabsState } from "../../domain/projectTabs";
+import type { CoreApi } from "../../data/apiClient";
+import { fakeCore as createFakeCore } from "../../test/fakeCore";
+import { createFileTreeStore } from "../fileTree/fileTreeStore";
 import { ProjectWorkspace } from "./ProjectWorkspace";
 import { createProjectTabsStore } from "./projectTabsStore";
 
 /** 코어를 흉내 내는 가짜. picks에 넣어 둔 폴더가 "폴더 선택 창에서 고른 폴더"가 된다 */
-function fakeCore(picks: string[], missing: string[] = []) {
-  let nextId = 1;
-  let state: ProjectTabsState = { tabs: [], activeId: "" };
-  const queue = [...picks];
-  const snapshot = () => structuredClone(state);
+const fakeCore = (picks: string[], missing: string[] = []) => createFakeCore({ picks, missing }).api;
 
-  const api: ProjectTabsApi = {
-    fetchState: async () => snapshot(),
-    addProject: async () => {
-      const path = queue.shift();
-      if (!path) return snapshot(); // 취소
-      const existing = state.tabs.find((tab) => tab.path === path);
-      if (existing) {
-        state = { ...state, activeId: existing.id };
-        return snapshot();
-      }
-      const name = path.split("\\").pop() ?? path;
-      const id = `t${nextId++}`;
-      state = {
-        tabs: [...state.tabs, { id, name, label: name, path, missing: missing.includes(path) }],
-        activeId: id,
-      };
-      return snapshot();
-    },
-    selectTab: async (id) => {
-      state = { ...state, activeId: id };
-      return snapshot();
-    },
-    closeTab: async (id) => {
-      const index = state.tabs.findIndex((tab) => tab.id === id);
-      const tabs = state.tabs.filter((tab) => tab.id !== id);
-      const neighbor = tabs[index] ?? tabs[tabs.length - 1];
-      state = { tabs, activeId: state.activeId === id ? (neighbor?.id ?? "") : state.activeId };
-      return snapshot();
-    },
-  };
-  return api;
-}
-
-async function renderWorkspace(api: ProjectTabsApi) {
+async function renderWorkspace(api: CoreApi) {
   const store = createProjectTabsStore(api);
+  const fileStore = createFileTreeStore(api, store);
   await store.load();
-  render(<ProjectWorkspace store={store} captionWidth={138} />);
+  render(<ProjectWorkspace store={store} fileStore={fileStore} captionWidth={138} />);
   return userEvent.setup();
 }
 
 const sidebar = () => screen.getByRole("complementary", { name: "하이어라키" });
+/** 사이드바 맨 위에 표시된 프로젝트 이름 */
+const sidebarProject = () => sidebar().querySelector(".sidebar__name");
 const workArea = () => screen.getByRole("region", { name: "작업 영역" });
 const tabNames = () => screen.queryAllByRole("tab").map((tab) => tab.textContent);
 
@@ -85,12 +52,14 @@ describe("프로젝트 탭", () => {
     await user.click(screen.getByRole("button", { name: "폴더 선택" }));
     await user.click(screen.getByRole("button", { name: "프로젝트 추가" }));
 
-    expect(sidebar()).toHaveTextContent(/^beta$/);
+    expect(sidebarProject()).toHaveTextContent(/^beta$/);
+    expect(sidebar()).not.toHaveTextContent("alpha");
     expect(workArea()).toHaveTextContent("beta · 열린 창이 없습니다");
 
     await user.click(screen.getByRole("tab", { name: "alpha" }));
 
-    expect(sidebar()).toHaveTextContent(/^alpha$/);
+    expect(sidebarProject()).toHaveTextContent(/^alpha$/);
+    expect(sidebar()).not.toHaveTextContent("beta");
     expect(workArea()).toHaveTextContent("alpha · 열린 창이 없습니다");
   });
 
@@ -159,13 +128,13 @@ describe("누를 수 있는 것 (AC9)", () => {
     expect(pressable()).toEqual(["폴더 선택", "프로젝트 추가"].sort());
   });
 
-  it("프로젝트가 열려 있을 때는 프로젝트 탭, 탭 닫기(×), 프로젝트 추가(+)뿐이다", async () => {
+  it("프로젝트가 열려 있을 때는 프로젝트 탭, 탭 닫기(×), 프로젝트 추가(+), 두 칸의 제목, 파일 칸뿐이다", async () => {
     const user = await renderWorkspace(fakeCore(["C:\\work\\alpha", "C:\\work\\beta"]));
     await user.click(screen.getByRole("button", { name: "폴더 선택" }));
     await user.click(screen.getByRole("button", { name: "프로젝트 추가" }));
 
     expect(pressable()).toEqual(
-      ["alpha", "alpha 탭 닫기", "beta", "beta 탭 닫기", "프로젝트 추가"].sort(),
+      ["alpha", "alpha 탭 닫기", "beta", "beta 탭 닫기", "프로젝트 추가", "▾에이전트", "▾파일", "파일"].sort(),
     );
   });
 });

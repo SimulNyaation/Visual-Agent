@@ -15,6 +15,9 @@ function npm(script) {
 function core(action) {
   return () => spawnSync(process.execPath, [join(root, "scripts", "core.mjs"), action], { stdio: "inherit" }).status === 0;
 }
+function node(script) {
+  return () => spawnSync(process.execPath, [join(root, "scripts", script)], { stdio: "inherit" }).status === 0;
+}
 function assemble() {
   const source = join(root, "build", "core", "Visual-Agent.exe");
   const target = join(root, "build", "dist", "Visual-Agent");
@@ -47,6 +50,7 @@ const steps = [
   { name: "화면 린트 (모듈 경계, 금지 패턴)", run: npm("lint"), gateOnly: true },
   { name: "색상표 검사", run: npm("lint:colors"), gateOnly: true },
   { name: "화면 테스트", run: npm("test"), gateOnly: true },
+  { name: "코어 파일 규칙 검사 (덮어쓰기·완전 삭제 금지)", run: node("lint-core-files.mjs"), gateOnly: true },
   { name: "화면 빌드", run: npm("build") },
   { name: "코어 빌드", run: core("build") },
   { name: "코어 테스트", run: core("test"), gateOnly: true },

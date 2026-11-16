@@ -10,16 +10,19 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
 import { createApiClient } from "./data/apiClient";
 import { readHostInfo } from "./data/hostInfo";
+import { createFileTreeStore } from "./features/fileTree/fileTreeStore";
 import { createProjectTabsStore } from "./features/projectTabs/projectTabsStore";
 
 const host = readHostInfo();
-const store = createProjectTabsStore(createApiClient(host.token));
+const api = createApiClient(host.token);
+const store = createProjectTabsStore(api);
+const fileStore = createFileTreeStore(api, store);
 void store.load();
 
 const root = document.getElementById("root");
 if (!root) throw new Error("index.html에 #root 요소가 없습니다");
 createRoot(root).render(
   <StrictMode>
-    <App store={store} captionWidth={host.captionWidth} />
+    <App store={store} fileStore={fileStore} captionWidth={host.captionWidth} />
   </StrictMode>,
 );

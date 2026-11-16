@@ -10,7 +10,8 @@ const HT = { top: 12, topLeft: 13, topRight: 14, left: 10, right: 11, bottom: 15
 
 const tabLabels = (page) => page.locator("[role=tab]").allTextContents();
 const selectedTab = (page) => page.locator("[role=tab][aria-selected=true]").textContent();
-const sidebarText = (page) => page.locator(".sidebar").innerText();
+/** 사이드바 맨 위에 표시된 프로젝트 이름 */
+const sidebarText = (page) => page.locator(".sidebar__name").innerText();
 const workAreaText = (page) => page.locator(".workarea").innerText();
 
 async function addProject(app, folder, button) {
@@ -109,13 +110,17 @@ describe("앱 뼈대", () => {
     assert.deepEqual(await tabLabels(app.page), ["alpha", "beta"]);
   });
 
-  test("AC9 누를 수 있는 것은 프로젝트 탭, 탭 닫기, 프로젝트 추가뿐이다", async () => {
+  test("AC9 누를 수 있는 것은 프로젝트 탭, 탭 닫기, 프로젝트 추가, 사이드바 두 칸의 제목, 파일 칸뿐이다", async () => {
     const pressable = await app.page.evaluate(() =>
       [...document.querySelectorAll("button, a, input, select, textarea, summary, [role='button'], [role='link'], [role='menuitem'], [tabindex], [contenteditable]")]
         .map((element) => element.getAttribute("aria-label") ?? element.textContent ?? "")
         .sort(),
     );
-    assert.deepEqual(pressable, ["alpha", "alpha 탭 닫기", "beta", "beta 탭 닫기", "프로젝트 추가"].sort());
+    // 사이드바의 두 칸과 파일 칸은 SPEC-20261116-file-explorer에서 추가됐다. 프로젝트 폴더가 비어 있어 파일 줄은 없다
+    assert.deepEqual(
+      pressable,
+      ["alpha", "alpha 탭 닫기", "beta", "beta 탭 닫기", "프로젝트 추가", "▾에이전트", "▾파일", "파일"].sort(),
+    );
   });
 
   test("AC11 화면이 기린 테마 색으로 그려진다", async () => {

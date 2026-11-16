@@ -18,13 +18,13 @@
 npm run check
 ```
 
-화면 타입 검사 → 화면 린트 → 색상표 검사 → 화면 테스트 → 화면 빌드 → 코어 빌드 → 코어 테스트 → 실행 파일 묶기 → 앱 창 테스트 순으로 돌고, 하나라도 실패하면 멈춘다. 마지막 단계에서 실제 앱 창이 20초쯤 떴다가 닫힌다.
+스크립트 인코딩 검사 → 화면 타입 검사 → 화면 린트 → 색상표 검사 → 화면 테스트 → 코어 파일 규칙 검사 → 화면 빌드 → 코어 빌드 → 코어 테스트 → 실행 파일 묶기 → 앱 창 테스트 순으로 돌고, 하나라도 실패하면 멈춘다. 마지막 단계에서 실제 앱 창이 두 번, 합쳐 1분쯤 떴다가 닫힌다. 앱 창 테스트는 마우스 커서를 움직이지 않고, 지운 파일을 실제 휴지통이 아닌 임시 폴더로 보낸다.
 
 베이스라인 파일: 없음
 
 필요한 도구: Visual Studio Build Tools 2022(C++, CMake 도구 포함), vcpkg(`%USERPROFILE%\vcpkg` 또는 `VCPKG_ROOT`), Node.js. 처음 한 번 `ui/`에서 `npm install`.
 
-제목 표시줄, 창 버튼, 창 틀을 바꾼 변경은 품질 게이트에 더해 `npm run e2e:mouse`도 통과해야 한다. 품질 게이트의 앱 창 테스트는 창에 신호를 보내는 방식이라 실제 클릭이 도달하는지는 확인하지 못한다.
+제목 표시줄, 창 버튼, 창 틀을 바꾼 변경과 파일 칸의 마우스·키보드 입력을 바꾼 변경은 품질 게이트에 더해 `npm run e2e:mouse`도 통과해야 한다. 품질 게이트의 앱 창 테스트는 창에 신호를 보내거나 화면 안으로 입력을 넣어 주는 방식이라 실제 클릭과 실제 키 입력이 도달하는지는 확인하지 못한다.
 
 ## 실행·증적 수집 명령
 
@@ -34,10 +34,13 @@ npm run check
 | 앱 실행 | `npm start` 또는 `build\dist\Visual-Agent\Visual-Agent.exe` |
 | 앱 창 테스트 | `cd ui && npm run e2e` |
 | 앱 창 테스트 + 스크린샷 | `VA_EVIDENCE_DIR=<폴더>`를 정하고 `npm run e2e` |
-| 실제 마우스로 창 버튼·창 다루기 테스트 | `cd ui && npm run e2e:mouse` (커서가 10초쯤 움직인다. 도는 동안 마우스를 건드리지 않는다) |
+| 실제 마우스·키보드로 창 버튼·창 다루기·파일 칸 테스트 | `cd ui && npm run e2e:mouse` (커서가 움직이고 키가 눌린다. 1분쯤 걸리며 도는 동안 마우스와 키보드를 건드리지 않는다) |
 | 스크린샷 수집 | `scripts/capture-window.ps1 -ProcessId <pid> -Out <png>` |
 | 메모리 비교 (Orca) | `scripts/measure-memory.ps1` |
 | 테스트용 설정 폴더 | 환경 변수 `VA_DATA_DIR` (지정하면 개인 설정 대신 그 폴더를 쓴다) |
+| 테스트용 휴지통 | 환경 변수 `VA_TRASH_DIR` (지정하면 지운 것을 Windows 휴지통 대신 그 폴더로 옮긴다) |
+| 실제 Windows 휴지통 확인 | `build\core\va_tests.exe -tc="recycle-bin-real*" --no-skip` (돌릴 때마다 휴지통에 `va-recycle-…` 항목이 남는다) |
+| 코어 파일 규칙 검사만 | `node scripts/lint-core-files.mjs` |
 | SNS 계정·토큰 | `private/` (자격 증명 기재 금지, 저장소 커밋 금지) |
 
 ## 모듈 경계
@@ -51,6 +54,7 @@ npm run check
 | `useEffect`, `setTimeout`, `any`, 우회 정당화 주석 금지 | ESLint | 적용 |
 | 색은 `design/theme-kirin.css`의 토큰만 사용 (화면과 창 쪽 코드 모두) | `ui/scripts/lint-colors.mjs` | 적용 |
 | `core/src/domain`은 파일 시스템·창·네트워크를 참조하지 않음 | 없음 | 예정 |
+| `core/src`는 사용자 파일을 덮어쓰거나 휴지통을 거치지 않고 지우는 함수를 쓰지 않음 (`std::filesystem::rename`·`remove`, `MOVEFILE_REPLACE_EXISTING`, `DeleteFile` 등) | `scripts/lint-core-files.mjs` | 적용 |
 
 ## 패스트트랙
 명세 없이 구현 가능한 조건 (전부 충족 필요):
@@ -64,3 +68,4 @@ npm run check
 - 자격 증명(토큰, 접속 코드) 처리
 - 아이폰 등 다른 기기에서의 접속 경로
 - 개인 설정 파일(`state.json`)의 형식 변경
+- 사용자 파일을 옮기거나 지우거나 덮어쓸 수 있는 코드 (`core/src/data/project_files.cpp`, `recycle_bin.cpp`)

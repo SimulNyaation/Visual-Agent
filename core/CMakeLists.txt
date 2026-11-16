@@ -28,8 +28,13 @@ add_custom_command(
 
 add_library(va_core STATIC
   src/domain/project_tabs.cpp
+  src/domain/file_rules.cpp
   src/data/settings_store.cpp
-  src/server/api_server.cpp)
+  src/data/project_files.cpp
+  src/data/recycle_bin.cpp
+  src/data/folder_watch.cpp
+  src/server/api_server.cpp
+  src/server/file_routes.cpp)
 target_include_directories(va_core PUBLIC src)
 target_link_libraries(va_core PUBLIC nlohmann_json::nlohmann_json PRIVATE httplib::httplib)
 
@@ -44,6 +49,9 @@ enable_testing()
 add_executable(va_tests
   tests/test_main.cpp
   tests/project_tabs_test.cpp
+  tests/file_rules_test.cpp
+  tests/project_files_test.cpp
+  tests/file_routes_test.cpp
   tests/settings_store_test.cpp
   tests/api_server_test.cpp)
 target_link_libraries(va_tests PRIVATE va_core doctest::doctest httplib::httplib)

@@ -5,6 +5,7 @@
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 
+#include "data/recycle_bin.h"
 #include "server/api_server.h"
 #include "temp_dir.h"
 
@@ -38,6 +39,7 @@ struct Fixture {
             std::error_code ec;
             return std::filesystem::is_directory(folder, ec);
         };
+        options.trash = va::data::folderTrash(dir.path() / "trash");
         server = std::make_unique<va::server::ApiServer>(
             std::move(options), va::data::SettingsStore(dir.path() / "settings"));
         REQUIRE(server->start());

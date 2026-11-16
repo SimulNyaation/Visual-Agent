@@ -5,15 +5,18 @@ import { FolderPickerScreen } from "../../ui/FolderPickerScreen";
 import { HierarchySidebar } from "../../ui/HierarchySidebar";
 import { TitleBar } from "../../ui/TitleBar";
 import { WorkArea } from "../../ui/WorkArea";
+import { FilePaneContainer } from "../fileTree/FilePaneContainer";
+import type { FileTreeStore } from "../fileTree/fileTreeStore";
 import type { ProjectTabsStore } from "./projectTabsStore";
 
 interface Props {
   store: ProjectTabsStore;
+  fileStore: FileTreeStore;
   /** 제목 표시줄 오른쪽에 창 버튼이 차지하는 폭 */
   captionWidth: number;
 }
 
-export function ProjectWorkspace({ store, captionWidth }: Props) {
+export function ProjectWorkspace({ store, fileStore, captionWidth }: Props) {
   const { status, state } = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const current = activeTab(state);
 
@@ -36,7 +39,9 @@ export function ProjectWorkspace({ store, captionWidth }: Props) {
         <main className="body" />
       ) : current ? (
         <main className="body body--project">
-          <HierarchySidebar projectName={current.name} />
+          <HierarchySidebar projectName={current.name}>
+            <FilePaneContainer store={fileStore} />
+          </HierarchySidebar>
           <WorkArea projectName={current.name} path={current.path} missing={current.missing} />
         </main>
       ) : (

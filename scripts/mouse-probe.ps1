@@ -1,9 +1,9 @@
 ﻿# 실제 마우스 입력으로 앱 창을 끌거나 더블클릭한다. 커서가 1~2초 동안 움직이고, 끝나면 원래 자리로 돌아온다.
 # 누르기 전에 커서 아래가 이 앱의 창인지 확인하고, 아니면 아무것도 누르지 않고 멈춘다.
-# 사용: mouse-probe.ps1 -ProcessId <pid> -Action drag|doubleclick -X n -Y n [-DX n -DY n]   (화면 좌표)
+# 사용: mouse-probe.ps1 -ProcessId <pid> -Action drag|doubleclick|click|rightclick -X n -Y n [-DX n -DY n]   (화면 좌표)
 param(
     [Parameter(Mandatory = $true)][int]$ProcessId,
-    [Parameter(Mandatory = $true)][ValidateSet("drag", "doubleclick", "click")][string]$Action,
+    [Parameter(Mandatory = $true)][ValidateSet("drag", "doubleclick", "click", "rightclick")][string]$Action,
     [Parameter(Mandatory = $true)][int]$X,
     [Parameter(Mandatory = $true)][int]$Y,
     [int]$DX = 0,
@@ -65,6 +65,10 @@ try {
         [VaMouse]::mouse_event($LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)
         Start-Sleep -Milliseconds 80
         [VaMouse]::mouse_event($LEFTUP, 0, 0, 0, [UIntPtr]::Zero)
+    } elseif ($Action -eq "rightclick") {
+        [VaMouse]::mouse_event(0x0008, 0, 0, 0, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 80
+        [VaMouse]::mouse_event(0x0010, 0, 0, 0, [UIntPtr]::Zero)
     } else {
         foreach ($click in 1, 2) {
             [VaMouse]::mouse_event($LEFTDOWN, 0, 0, 0, [UIntPtr]::Zero)

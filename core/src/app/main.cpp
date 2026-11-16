@@ -8,6 +8,7 @@
 #include <shlobj.h>
 
 #include "app/app_window.h"
+#include "data/recycle_bin.h"
 #include "data/settings_store.h"
 #include "server/api_server.h"
 
@@ -35,6 +36,14 @@ std::filesystem::path executableDirectory() {
     return std::filesystem::path(buffer).parent_path();
 }
 
+std::wstring environment(const wchar_t* name) {
+    std::wstring value(32767, L'\0');
+    const DWORD length =
+        GetEnvironmentVariableW(name, value.data(), static_cast<DWORD>(value.size()));
+    value.resize(length);
+    return value;
+}
+
 struct DataFolders {
     std::filesystem::path settings;  // 열려 있던 탭 등 개인 설정
     std::filesystem::path webview;   // 화면 부품의 캐시
@@ -42,11 +51,8 @@ struct DataFolders {
 
 // VA_DATA_DIR이 있으면 그 폴더만 쓴다. 자동 테스트가 실제 개인 설정을 건드리지 않게 하기 위함이다
 DataFolders dataFolders() {
-    std::wstring overrideDir(32767, L'\0');
-    const DWORD length = GetEnvironmentVariableW(L"VA_DATA_DIR", overrideDir.data(),
-                                                 static_cast<DWORD>(overrideDir.size()));
-    if (length > 0) {
-        overrideDir.resize(length);
+    const std::wstring overrideDir = environment(L"VA_DATA_DIR");
+    if (!overrideDir.empty()) {
         const std::filesystem::path root(overrideDir);
         return {root, root / "webview"};
     }
@@ -83,6 +89,10 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
         std::error_code check;
         return std::filesystem::is_directory(folder, check);
     };
+    // VA_TRASH_DIR이 있으면 지운 것을 휴지통 대신 그 폴더로 보낸다. 자동 테스트가 실제 휴지통을 채우지 않게 하기 위함이다
+    const std::wstring trashDir = environment(L"VA_TRASH_DIR");
+    options.trash = trashDir.empty() ? va::data::recycleBinTrash()
+                                     : va::data::folderTrash(std::filesystem::path(trashDir));
     const std::string token = options.token;
 
     va::server::ApiServer server(std::move(options), va::data::SettingsStore(folders.settings));

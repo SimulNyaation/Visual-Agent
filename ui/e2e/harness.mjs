@@ -13,6 +13,7 @@ export const exePath = join(repoRoot, "build", "dist", "Visual-Agent", "Visual-A
 const probeScript = join(repoRoot, "scripts", "window-probe.ps1");
 const captureScript = join(repoRoot, "scripts", "capture-window.ps1");
 const mouseScript = join(repoRoot, "scripts", "mouse-probe.ps1");
+const keyScript = join(repoRoot, "scripts", "key-probe.ps1");
 const evidenceDir = process.env.VA_EVIDENCE_DIR;
 
 const pause = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -45,6 +46,12 @@ export function mouse(pid, action, x, y, dx = 0, dy = 0) {
   if (!result.ok) throw new Error(`마우스 입력을 보내지 못했습니다: ${result.reason}`);
 }
 
+/** 실제 키보드 입력을 보낸다. 예: "F2,2,Enter", "Ctrl+C". 앱 창이 맨 앞이 아니면 누르지 않고 실패한다 */
+export function keys(pid, combos) {
+  const result = JSON.parse(powershell(["-File", keyScript, "-ProcessId", String(pid), "-Keys", combos]));
+  if (!result.ok) throw new Error(`키보드 입력을 보내지 못했습니다: ${result.reason}`);
+}
+
 /** 테스트용 폴더 묶음: 설정 폴더와 프로젝트로 쓸 폴더들 */
 export function createSandbox() {
   const root = mkdtempSync(join(tmpdir(), "va-e2e-"));
@@ -53,6 +60,8 @@ export function createSandbox() {
   return {
     root,
     dataDir,
+    /** 앱이 지운 것을 실제 휴지통 대신 보내는 폴더 */
+    trashDir: join(root, "trash"),
     project(...parts) {
       const folder = join(root, "projects", ...parts);
       mkdirSync(folder, { recursive: true });
@@ -84,6 +93,7 @@ export async function launchApp(sandbox) {
     env: {
       ...process.env,
       VA_DATA_DIR: sandbox.dataDir,
+      VA_TRASH_DIR: sandbox.trashDir,
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${debugPort}`,
     },
     stdio: "ignore",

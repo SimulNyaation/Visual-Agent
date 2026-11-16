@@ -50,6 +50,10 @@ bool ApiServer::start() {
 }
 
 void ApiServer::stop() {
+    {
+        std::lock_guard lock(waitMutex_);
+        if (currentWait_) currentWait_->cancel();
+    }
     if (server_ && server_->is_running()) server_->stop();
     if (thread_.joinable()) thread_.join();
 }
@@ -134,8 +138,14 @@ void ApiServer::registerRoutes() {
                             return sendError(res, 404, "tab_not_found");
                         }
                         store_.save(tabs_);
+                        {
+                            std::lock_guard files(filesMutex_);
+                            history_.erase(req.matches[1].str());
+                        }
                         res.set_content(stateJson(), kJson);
                     });
+
+    registerFileRoutes();
 }
 
 }  // namespace va::server
