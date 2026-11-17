@@ -3,6 +3,7 @@
 import type { CoreApi, FileResult, ListResult } from "../data/apiClient";
 import { isSameOrInside, joinPath, nameOf, parentOf, type FileChange, type FolderListing } from "../domain/fileTree";
 import type { ProjectTabsState } from "../domain/projectTabs";
+import type { TerminalEvents, TerminalInfo, TerminalOutput } from "../domain/terminals";
 
 type Kind = "folder" | "file";
 interface Operation {
@@ -17,6 +18,37 @@ export interface FakeCoreOptions {
   missing?: string[];
   /** 폴더별 내용. "src/" 처럼 /로 끝나면 폴더다 */
   files?: Record<string, string[]>;
+  /** 이 컴퓨터에서 뜨는 셸. 주지 않으면 PowerShell 7. null이면 띄울 셸이 없다 */
+  shell?: "pwsh" | "cmd" | null;
+}
+
+/** 가짜 코어의 터미널을 테스트에서 조작하는 손잡이 */
+export interface FakeTerminals {
+  list(): TerminalInfo[];
+  /** 터미널에 출력이 나온 것처럼 만든다 */
+  emit(id: string, text: string): void;
+  /** 글자가 아닌 바이트 그대로 내보낸다 (글자 중간에서 끊긴 출력을 만들 때) */
+  emitBytes(id: string, bytes: Uint8Array): void;
+  /** 터미널에서 에이전트가 실행된(끝난) 것처럼 만든다. 빈 문자열이면 끝난 것 */
+  setAgent(id: string, agent: string): void;
+  /** 터미널에서 프로그램이 돌고 있는(끝난) 것처럼 만든다 */
+  setBusy(id: string, busy: boolean): void;
+  /** 셸이 스스로 끝난 것처럼 만든다 (exit) */
+  exit(id: string): void;
+  /** 사용자가 앱 창의 닫기를 누른 것처럼 만든다 */
+  requestQuit(): void;
+  /** 다음 터미널 띄우기를 이 이유로 실패시킨다 */
+  failNextOpen(code: string): void;
+  /** 글자 보내기를 끝내지 않고 붙잡아 둔다. 돌려받은 함수를 부르면 끝난다 */
+  holdInput(): () => void;
+  /** 터미널이 받은 글자 (요청 하나가 한 항목) */
+  inputs(id: string): string[];
+  /** 터미널이 받은 크기 변경 */
+  sizes(id: string): string[];
+  /** 앱 닫기 확인 창에 한 답 */
+  quitAnswers: boolean[];
+  /** 터미널 소식을 기다리는 요청을 실패시킨다 (코어와 연결이 끊김) */
+  disconnect(): void;
 }
 
 export interface FakeCore {
@@ -32,7 +64,10 @@ export interface FakeCore {
   /** 코어가 받은 파일 작업 요청 수 */
   mutations(): number;
   trashed: string[];
+  terminals: FakeTerminals;
 }
+
+const shellLabels = { pwsh: "PowerShell", cmd: "cmd" };
 
 export function fakeCore(options: FakeCoreOptions): FakeCore {
   let nextId = 1;
@@ -46,6 +81,34 @@ export function fakeCore(options: FakeCoreOptions): FakeCore {
   let failure: string | null = null;
   let copyGate: Promise<void> | null = null;
   let mutationCount = 0;
+
+  const shellId = options.shell === undefined ? "pwsh" : options.shell;
+  let terminals: TerminalInfo[] = [];
+  let terminalVersion = 1;
+  let nextTerminalId = 1;
+  let pendingOutput: TerminalOutput[] = [];
+  let quitRequests = 0;
+  let openFailure: string | null = null;
+  let inputGate: Promise<void> | null = null;
+  let connectionLost = false;
+  const autoStarted = new Set<string>();
+  const terminalWaiters = new Set<() => void>();
+  const terminalInputs = new Map<string, string[]>();
+  const terminalSizes = new Map<string, string[]>();
+  const quitAnswers: boolean[] = [];
+
+  const wakeTerminals = () => {
+    const pending = [...terminalWaiters];
+    terminalWaiters.clear();
+    pending.forEach((resolve) => resolve());
+  };
+  const changeTerminals = (next: TerminalInfo[]) => {
+    terminals = next;
+    terminalVersion++;
+    wakeTerminals();
+  };
+  const patchTerminal = (id: string, patch: Partial<TerminalInfo>) =>
+    changeTerminals(terminals.map((terminal) => (terminal.id === id ? { ...terminal, ...patch } : terminal)));
 
   const snapshot = () => structuredClone(state);
   const wake = () => {
@@ -149,12 +212,72 @@ export function fakeCore(options: FakeCoreOptions): FakeCore {
       state = { ...state, activeId: id };
       return snapshot();
     },
-    closeTab: async (id) => {
+    closeTab: async (id, force) => {
+      if (!force && terminals.some((terminal) => terminal.tabId === id && terminal.busy)) {
+        return { ok: false, error: "busy" };
+      }
+      changeTerminals(terminals.filter((terminal) => terminal.tabId !== id));
+      autoStarted.delete(id);
       const index = state.tabs.findIndex((tab) => tab.id === id);
       const tabs = state.tabs.filter((tab) => tab.id !== id);
       const neighbor = tabs[index] ?? tabs[tabs.length - 1];
       state = { tabs, activeId: state.activeId === id ? (neighbor?.id ?? "") : state.activeId };
-      return snapshot();
+      return { ok: true, state: snapshot() };
+    },
+
+    openTerminal: async (tabId, automatic) => {
+      const tab = state.tabs.find((candidate) => candidate.id === tabId);
+      if (!tab) return { ok: false, error: "tab_not_found" };
+      if (tab.missing) return { ok: false, error: "folder_not_found" };
+      if (automatic) {
+        if (autoStarted.has(tabId)) return { ok: true, terminal: null };
+        autoStarted.add(tabId);
+      }
+      if (openFailure) {
+        const error = openFailure;
+        openFailure = null;
+        return { ok: false, error };
+      }
+      if (!shellId) return { ok: false, error: "no_shell" };
+      const used = terminals.filter((terminal) => terminal.tabId === tabId).map((terminal) => Number(terminal.name.split(" ").pop()));
+      let number = 1;
+      while (used.includes(number)) number++;
+      const terminal: TerminalInfo = {
+        id: `p${nextTerminalId++}`,
+        tabId,
+        shell: shellId,
+        name: `${shellLabels[shellId]} ${number}`,
+        agent: "",
+        busy: false,
+      };
+      changeTerminals([...terminals, terminal]);
+      return { ok: true, terminal };
+    },
+    sendInput: async (id, data) => {
+      if (inputGate) await inputGate;
+      terminalInputs.set(id, [...(terminalInputs.get(id) ?? []), data]);
+    },
+    resizeTerminal: async (id, columns, rows) => {
+      terminalSizes.set(id, [...(terminalSizes.get(id) ?? []), `${columns}x${rows}`]);
+    },
+    closeTerminal: async (id, force) => {
+      const terminal = terminals.find((candidate) => candidate.id === id);
+      if (!terminal) return { ok: false, error: "terminal_not_found" };
+      if (terminal.busy && !force) return { ok: false, error: "busy" };
+      changeTerminals(terminals.filter((candidate) => candidate.id !== id));
+      return { ok: true };
+    },
+    waitForTerminalEvents: async (version): Promise<TerminalEvents> => {
+      while (version === terminalVersion && pendingOutput.length === 0 && !connectionLost) {
+        await new Promise<void>((resolve) => terminalWaiters.add(resolve));
+      }
+      if (connectionLost) throw new Error("연결이 끊김");
+      const output = pendingOutput;
+      pendingOutput = [];
+      return { version: terminalVersion, terminals: structuredClone(terminals), output, quitRequests };
+    },
+    answerQuit: async (confirm) => {
+      quitAnswers.push(confirm);
     },
 
     list: async (tabId, dirs): Promise<ListResult> => {
@@ -270,5 +393,44 @@ export function fakeCore(options: FakeCoreOptions): FakeCore {
     },
     mutations: () => mutationCount,
     trashed,
+    terminals: {
+      list: () => structuredClone(terminals),
+      emit(id, text) {
+        pendingOutput.push({ id, bytes: new TextEncoder().encode(text) });
+        wakeTerminals();
+      },
+      emitBytes(id, bytes) {
+        pendingOutput.push({ id, bytes });
+        wakeTerminals();
+      },
+      setAgent: (id, agent) => patchTerminal(id, { agent, busy: agent !== "" }),
+      setBusy: (id, busy) => patchTerminal(id, { busy }),
+      exit: (id) => changeTerminals(terminals.filter((terminal) => terminal.id !== id)),
+      requestQuit() {
+        quitRequests++;
+        terminalVersion++;
+        wakeTerminals();
+      },
+      failNextOpen(code) {
+        openFailure = code;
+      },
+      holdInput() {
+        let release = () => {};
+        inputGate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return () => {
+          inputGate = null;
+          release();
+        };
+      },
+      inputs: (id) => terminalInputs.get(id) ?? [],
+      sizes: (id) => terminalSizes.get(id) ?? [],
+      quitAnswers,
+      disconnect() {
+        connectionLost = true;
+        wakeTerminals();
+      },
+    },
   };
 }

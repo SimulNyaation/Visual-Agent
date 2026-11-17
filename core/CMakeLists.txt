@@ -29,12 +29,18 @@ add_custom_command(
 add_library(va_core STATIC
   src/domain/project_tabs.cpp
   src/domain/file_rules.cpp
+  src/domain/terminal_rules.cpp
   src/data/settings_store.cpp
   src/data/project_files.cpp
   src/data/recycle_bin.cpp
   src/data/folder_watch.cpp
+  src/data/pty.cpp
+  src/data/shell_finder.cpp
+  src/data/process_info.cpp
+  src/data/terminals.cpp
   src/server/api_server.cpp
-  src/server/file_routes.cpp)
+  src/server/file_routes.cpp
+  src/server/terminal_routes.cpp)
 target_include_directories(va_core PUBLIC src)
 target_link_libraries(va_core PUBLIC nlohmann_json::nlohmann_json PRIVATE httplib::httplib)
 
@@ -45,6 +51,9 @@ add_executable(Visual-Agent WIN32
 target_include_directories(Visual-Agent PRIVATE "${GENERATED_DIR}")
 target_link_libraries(Visual-Agent PRIVATE va_core unofficial::webview2::webview2 dwmapi)
 
+# 터미널 테스트에서 에이전트 대신 실행하는 시험용 프로그램. 화면 전체를 쓰고, 받은 키를 파일에 적는다
+add_executable(va_fake_agent tests/fake_agent.cpp)
+
 enable_testing()
 add_executable(va_tests
   tests/test_main.cpp
@@ -52,7 +61,12 @@ add_executable(va_tests
   tests/file_rules_test.cpp
   tests/project_files_test.cpp
   tests/file_routes_test.cpp
+  tests/terminal_rules_test.cpp
+  tests/terminals_test.cpp
+  tests/terminal_routes_test.cpp
   tests/settings_store_test.cpp
   tests/api_server_test.cpp)
 target_link_libraries(va_tests PRIVATE va_core doctest::doctest httplib::httplib)
+add_dependencies(va_tests va_fake_agent)
+target_compile_definitions(va_tests PRIVATE VA_FAKE_AGENT_PATH="$<TARGET_FILE:va_fake_agent>")
 add_test(NAME core COMMAND va_tests)

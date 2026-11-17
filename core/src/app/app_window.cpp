@@ -20,6 +20,7 @@ constexpr wchar_t kCaptionClass[] = L"VisualAgentCaption";
 constexpr wchar_t kTitle[] = L"Visual-Agent";
 
 constexpr UINT kPickFolderMessage = WM_APP + 1;
+constexpr UINT kForceCloseMessage = WM_APP + 2;
 
 // 화면(CSS) 기준 크기. 실제 픽셀은 배율을 곱한다
 constexpr int kTitleBarHeight = 40;
@@ -103,6 +104,8 @@ void AppWindow::failStartup(const wchar_t* message) {
     MessageBoxW(hwnd_, message, kTitle, MB_OK | MB_ICONERROR);
     DestroyWindow(hwnd_);
 }
+
+void AppWindow::forceClose() { PostMessageW(hwnd_, kForceCloseMessage, 0, 0); }
 
 void AppWindow::loadUi(const UiTarget& target) {
     target_ = target;
@@ -412,6 +415,12 @@ LRESULT AppWindow::handle(UINT message, WPARAM wParam, LPARAM lParam) {
             info->ptMinTrackSize = POINT{scale(kMinWidth), scale(kMinHeight)};
             return 0;
         }
+        case WM_CLOSE:
+            if (closeGuard_ && !closeGuard_()) return 0;
+            break;
+        case kForceCloseMessage:
+            DestroyWindow(hwnd_);
+            return 0;
         case kPickFolderMessage: {
             auto* promise =
                 reinterpret_cast<std::promise<std::optional<std::filesystem::path>>*>(lParam);

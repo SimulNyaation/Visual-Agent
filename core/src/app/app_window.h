@@ -2,6 +2,7 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 
@@ -23,6 +24,11 @@ public:
     bool create(HINSTANCE instance);
     void loadUi(const UiTarget& target);
     int run();
+
+    // 창을 닫으려 할 때마다 묻는다. false를 돌려주면 닫지 않는다
+    void setCloseGuard(std::function<bool()> guard) { closeGuard_ = std::move(guard); }
+    // 묻지 않고 닫는다. 어느 스레드에서 불러도 된다
+    void forceClose();
 
     // 서버 스레드에서 부른다. 창 스레드에서 폴더 선택 창을 띄우고 결과를 기다린다
     std::optional<std::filesystem::path> pickFolder();
@@ -56,6 +62,7 @@ private:
     CaptionButton hover_ = kNone;
     CaptionButton pressed_ = kNone;
     UiTarget target_;
+    std::function<bool()> closeGuard_;
     Microsoft::WRL::ComPtr<ICoreWebView2Controller> controller_;
     Microsoft::WRL::ComPtr<ICoreWebView2> webview_;
 };

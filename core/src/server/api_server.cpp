@@ -35,7 +35,8 @@ ApiServer::ApiServer(ApiServerOptions options, data::SettingsStore store)
     : options_(std::move(options)),
       store_(std::move(store)),
       tabs_(store_.load()),
-      server_(std::make_unique<httplib::Server>()) {}
+      server_(std::make_unique<httplib::Server>()),
+      terminals_(options_.shells) {}
 
 ApiServer::~ApiServer() { stop(); }
 
@@ -54,9 +55,12 @@ void ApiServer::stop() {
         std::lock_guard lock(waitMutex_);
         if (currentWait_) currentWait_->cancel();
     }
+    // 터미널을 먼저 닫아야 터미널 소식을 기다리던 요청이 끝나고 서버가 멈출 수 있다
+    terminals_.shutdown();
     if (server_ && server_->is_running()) server_->stop();
     if (thread_.joinable()) thread_.join();
 }
+
 
 std::string ApiServer::stateJson() {
     nlohmann::json tabs = nlohmann::json::array();
@@ -131,21 +135,27 @@ void ApiServer::registerRoutes() {
                       res.set_content(stateJson(), kJson);
                   });
 
+    // 터미널에서 실행 중인 프로그램이 있으면 닫지 않고 busy로 답한다. force=1이면 묻지 않고 닫는다
     server_->Delete(R"(/api/tabs/([^/]+))",
                     [this](const httplib::Request& req, httplib::Response& res) {
-                        std::lock_guard lock(mutex_);
-                        if (!tabs_.close(req.matches[1].str())) {
-                            return sendError(res, 404, "tab_not_found");
+                        const std::string id = req.matches[1].str();
+                        if (req.get_param_value("force") != "1" && terminals_.tabBusy(id)) {
+                            return sendError(res, 409, "busy");
                         }
+                        std::lock_guard lock(mutex_);
+                        if (!tabs_.close(id)) return sendError(res, 404, "tab_not_found");
                         store_.save(tabs_);
                         {
                             std::lock_guard files(filesMutex_);
-                            history_.erase(req.matches[1].str());
+                            history_.erase(id);
                         }
+                        terminals_.closeTab(id);
+                        autoStarted_.erase(id);
                         res.set_content(stateJson(), kJson);
                     });
 
     registerFileRoutes();
+    registerTerminalRoutes();
 }
 
 }  // namespace va::server

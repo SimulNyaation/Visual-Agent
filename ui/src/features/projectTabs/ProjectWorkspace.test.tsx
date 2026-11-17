@@ -3,7 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { CoreApi } from "../../data/apiClient";
 import { fakeCore as createFakeCore } from "../../test/fakeCore";
+import { fakeScreens } from "../../test/fakeScreen";
 import { createFileTreeStore } from "../fileTree/fileTreeStore";
+import { createTerminalStore } from "../terminals/terminalStore";
 import { ProjectWorkspace } from "./ProjectWorkspace";
 import { createProjectTabsStore } from "./projectTabsStore";
 
@@ -14,7 +16,8 @@ async function renderWorkspace(api: CoreApi) {
   const store = createProjectTabsStore(api);
   const fileStore = createFileTreeStore(api, store);
   await store.load();
-  render(<ProjectWorkspace store={store} fileStore={fileStore} captionWidth={138} />);
+  const terminalStore = createTerminalStore(api, store, fakeScreens().create);
+  render(<ProjectWorkspace store={store} fileStore={fileStore} terminalStore={terminalStore} captionWidth={138} />);
   return userEvent.setup();
 }
 
@@ -54,13 +57,13 @@ describe("프로젝트 탭", () => {
 
     expect(sidebarProject()).toHaveTextContent(/^beta$/);
     expect(sidebar()).not.toHaveTextContent("alpha");
-    expect(workArea()).toHaveTextContent("beta · 열린 창이 없습니다");
+    expect(await within(workArea()).findByRole("group", { name: "터미널" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "alpha" }));
 
     expect(sidebarProject()).toHaveTextContent(/^alpha$/);
     expect(sidebar()).not.toHaveTextContent("beta");
-    expect(workArea()).toHaveTextContent("alpha · 열린 창이 없습니다");
+    expect(await within(workArea()).findByRole("group", { name: "터미널" })).toBeInTheDocument();
   });
 
   it("탭을 닫으면 사라지고 옆 탭이 선택되며, 마지막 탭을 닫으면 폴더 선택 화면이 보인다 (AC5)", async () => {
@@ -99,7 +102,8 @@ describe("프로젝트 탭", () => {
     expect(workArea()).toHaveTextContent("폴더를 찾을 수 없습니다");
 
     await user.click(screen.getByRole("tab", { name: "alpha" }));
-    expect(workArea()).toHaveTextContent("alpha · 열린 창이 없습니다");
+    expect(workArea()).not.toHaveTextContent("폴더를 찾을 수 없습니다");
+    expect(await within(workArea()).findByRole("group", { name: "터미널" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "gone 탭 닫기" }));
     expect(tabNames()).toEqual(["alpha"]);
@@ -128,13 +132,26 @@ describe("누를 수 있는 것 (AC9)", () => {
     expect(pressable()).toEqual(["폴더 선택", "프로젝트 추가"].sort());
   });
 
-  it("프로젝트가 열려 있을 때는 프로젝트 탭, 탭 닫기(×), 프로젝트 추가(+), 두 칸의 제목, 파일 칸뿐이다", async () => {
+  it("프로젝트가 열려 있을 때는 프로젝트 탭, 탭 닫기(×), 프로젝트 추가(+), 두 칸의 제목, 터미널 줄과 그 버튼들, 파일 칸뿐이다", async () => {
     const user = await renderWorkspace(fakeCore(["C:\\work\\alpha", "C:\\work\\beta"]));
     await user.click(screen.getByRole("button", { name: "폴더 선택" }));
     await user.click(screen.getByRole("button", { name: "프로젝트 추가" }));
+    await screen.findByRole("list", { name: "터미널 목록" });
 
     expect(pressable()).toEqual(
-      ["alpha", "alpha 탭 닫기", "beta", "beta 탭 닫기", "프로젝트 추가", "▾에이전트", "▾파일", "파일"].sort(),
+      [
+        "alpha",
+        "alpha 탭 닫기",
+        "beta",
+        "beta 탭 닫기",
+        "프로젝트 추가",
+        "▾에이전트",
+        "새 터미널",
+        "PowerShell 1",
+        "PowerShell 1 닫기",
+        "▾파일",
+        "파일",
+      ].sort(),
     );
   });
 });

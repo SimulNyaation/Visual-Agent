@@ -3,10 +3,13 @@
 
 #include <filesystem>
 #include <functional>
+#include <atomic>
+#include <chrono>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -14,6 +17,8 @@
 #include "data/folder_watch.h"
 #include "data/project_files.h"
 #include "data/settings_store.h"
+#include "data/shell_finder.h"
+#include "data/terminals.h"
 #include "domain/file_rules.h"
 #include "domain/project_tabs.h"
 
@@ -33,6 +38,10 @@ struct ApiServerOptions {
     std::function<bool(const std::filesystem::path&)> folderExists;
     // 지운 것을 보내는 곳 (휴지통)
     data::TrashFn trash;
+    // 터미널에 띄울 셸. 앞의 것부터 띄워 본다
+    std::vector<data::InstalledShell> shells;
+    // 앱 창을 묻지 않고 닫는다
+    std::function<void()> quit;
 };
 
 class ApiServer {
@@ -48,9 +57,16 @@ public:
     void stop();
     int port() const { return port_; }
 
+    // 앱 창을 닫으려 할 때 창이 묻는다. 바로 닫아도 되면 true.
+    // 터미널에서 실행 중인 프로그램이 있으면 화면에 확인 창을 띄우게 하고 false를 돌려준다
+    bool requestClose();
+
 private:
     void registerRoutes();
     void registerFileRoutes();
+    void registerTerminalRoutes();
+    // 화면이 터미널 소식을 받아 가고 있는가
+    bool screenListening() const;
     // 탭의 프로젝트 폴더. 탭이 없거나 폴더가 없으면 오류를 응답하고 값이 없다
     std::optional<data::ProjectFiles> projectFiles(const httplib::Request& req, httplib::Response& res);
     std::string stateJson();
@@ -59,6 +75,8 @@ private:
     data::SettingsStore store_;
     std::mutex mutex_;
     domain::ProjectTabs tabs_;
+    // 이번 실행에서 터미널을 자동으로 띄워 준 탭
+    std::set<std::string> autoStarted_;
     std::unique_ptr<httplib::Server> server_;
     std::thread thread_;
 
@@ -68,6 +86,12 @@ private:
     // 지금 폴더 변화를 기다리고 있는 요청. 새 요청이 오면 앞의 것은 끝낸다
     std::mutex waitMutex_;
     std::shared_ptr<data::ChangeWait> currentWait_;
+
+    data::Terminals terminals_;
+    // 앱 닫기 확인을 화면에 요청한 횟수. 화면은 이 값이 커지면 확인 창을 띄운다
+    std::atomic<unsigned> quitRequests_{0};
+    std::atomic<int> listeners_{0};
+    std::atomic<std::chrono::steady_clock::rep> lastListen_{0};
     int port_ = 0;
 };
 

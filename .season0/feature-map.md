@@ -22,14 +22,19 @@ UI와 기능의 **정식 명칭** 사전입니다. Human과 AI가 동일한 명�
 | 프로젝트 추가(+) | 제목 표시줄 | 폴더 선택 창을 띄워 새 탭을 연다 | `ui/src/ui/TitleBar.tsx`, 폴더 선택 창: `core/src/app/app_window.cpp` |
 | 창 버튼 | 제목 표시줄 | 최소화·최대화·닫기. 창 쪽에서 그린다 | `core/src/app/app_window.cpp` |
 | 하이어라키 사이드바 | 앱 창 | 맨 위에 프로젝트 이름, 그 아래에 에이전트 칸과 파일 칸을 위아래로 둔다. 칸 제목을 누르면 그 칸이 접힌다 | `ui/src/ui/HierarchySidebar.tsx` |
-| 에이전트 칸 | 하이어라키 사이드바 | 에이전트 목록과 상태가 들어갈 자리. 지금은 "에이전트가 없습니다"만 | `ui/src/ui/HierarchySidebar.tsx` |
+| 에이전트 칸 | 하이어라키 사이드바 | 그 프로젝트의 터미널이 한 줄씩 보인다. 터미널이 없으면 "터미널이 없습니다" | `ui/src/ui/AgentPane.tsx`, 상태: `ui/src/features/terminals/terminalStore.ts`, 규칙: `ui/src/domain/terminals.ts` |
+| 터미널 줄 | 에이전트 칸 | 터미널 하나. 이름은 셸 이름과 번호("PowerShell 1"). 누르면 작업 영역이 그 터미널로 바뀐다. 에이전트가 돌고 있으면 에이전트 이름과 채운 점이 함께 보인다 | `ui/src/ui/AgentPane.tsx` |
+| 터미널 닫기(×) | 터미널 줄 | 그 터미널을 닫는다. 실행 중인 프로그램이 있으면 닫기 확인 창이 먼저 뜬다 | `ui/src/ui/AgentPane.tsx` |
+| 새 터미널(+) | 에이전트 칸 제목 옆 | 터미널을 하나 더 띄운다. PowerShell 7로 뜨고, 뜨지 않으면 명령 프롬프트(cmd)로 뜬다 | `ui/src/ui/AgentPane.tsx` |
 | 파일 칸 | 하이어라키 사이드바 | 프로젝트 폴더의 내부 구조. 펼치기·접기, 선택, 끌어서 옮기기, 복사·잘라내기·붙여넣기, 이름 바꾸기, 지우기, 새로 만들기, 되돌리기 | `ui/src/ui/FilePane.tsx`, 상태: `ui/src/features/fileTree/fileTreeStore.ts`, 규칙: `ui/src/domain/fileTree.ts` |
 | 파일 줄 | 파일 칸 | 파일이나 폴더 하나. 누르면 선택되고 폴더는 펼쳐진다 | `ui/src/ui/FilePane.tsx` |
 | 이름 입력 칸 | 파일 줄 | 이름 바꾸기와 새로 만들기에서 이름을 받는 칸. Enter로 반영, Esc로 그만둔다 | `ui/src/ui/FilePane.tsx` |
 | 우클릭 메뉴 | 파일 칸 | 새 파일, 새 폴더, 잘라내기, 복사, 붙여넣기, 이름 바꾸기, 지우기. 빈 곳에서는 새 파일, 새 폴더, 붙여넣기만 | `ui/src/ui/FileContextMenu.tsx` |
 | 지우기 확인 창 | 앱 창 | 지우기 전에 "…을 휴지통으로 보냅니다"를 묻는다 | `ui/src/ui/FilePane.tsx` |
 | 파일 칸 알림 | 파일 칸 | 파일 칸 아래의 한 줄. 실패 이유, 되돌린 내용, "복사하는 중"을 표시한다 | `ui/src/ui/FilePane.tsx` |
-| 작업 영역 | 앱 창 | 문서 창과 코드 편집기가 뜰 자리. 지금은 비어 있음 | `ui/src/ui/WorkArea.tsx` |
+| 작업 영역 | 앱 창 | 터미널이 뜨는 자리. 문서 창과 코드 편집기도 여기에 뜰 예정 | `ui/src/ui/WorkArea.tsx` |
+| 터미널 | 작업 영역 | 셸에 명령을 넣고 결과를 보는 화면. 한 번에 하나만 보인다. 터미널이 없으면 "터미널이 없습니다"와 새 터미널 버튼 | `ui/src/ui/TerminalArea.tsx`, 글자 화면: `ui/src/ui/xtermScreen.ts` |
+| 닫기 확인 창 | 앱 창 | 실행 중인 프로그램이 있는 터미널·프로젝트 탭·앱을 닫기 전에 "실행 중인 프로그램이 있습니다. 닫으면 종료됩니다"를 묻는다 | `ui/src/ui/TerminalArea.tsx` |
 | 없어진 폴더 안내 | 작업 영역 | 탭의 폴더를 찾을 수 없을 때 표시 | `ui/src/ui/WorkArea.tsx` |
 | 폴더 선택 버튼 | 프로젝트 폴더 선택 화면 | 폴더 선택 창을 띄운다 | `ui/src/ui/FolderPickerScreen.tsx` |
 
@@ -44,7 +49,10 @@ UI와 기능의 **정식 명칭** 사전입니다. Human과 AI가 동일한 명�
 | 휴지통 | 지운 것을 보내는 Windows 휴지통 | `core/src/data/recycle_bin.cpp` |
 | 되돌리기 기록 | 프로젝트 탭마다 쌓이는, 되돌릴 수 있는 파일 작업 목록. 앱을 닫으면 사라진다 | `core/src/server/file_routes.cpp` |
 | 폴더 변화 기다리기 | 펼쳐 둔 폴더가 앱 밖에서 바뀌면 화면에 알리는 부분 | `core/src/data/folder_watch.cpp` |
-| 기린 테마 | 색상표 | `design/theme-kirin.css` |
+| 터미널 관리 | 셸을 띄우고 닫고, 글자를 주고받고, 실행 중인 에이전트를 알아보는 부분 | `core/src/data/terminals.cpp`, 셸 하나: `core/src/data/pty.cpp`, 규칙: `core/src/domain/terminal_rules.cpp`, 요청 처리: `core/src/server/terminal_routes.cpp` |
+| 셸 찾기 | 터미널에 띄울 셸(PowerShell 7, 명령 프롬프트)이 이 컴퓨터의 어디에 있는지 찾는 부분 | `core/src/data/shell_finder.cpp` |
+| 터미널 소식 | 화면이 받아 가는 터미널의 새 출력과 터미널 목록 | `core/src/server/terminal_routes.cpp` |
+| 기린 테마 | 색상표. 터미널의 16색 포함 | `design/theme-kirin.css` |
 
 ## 상태 표시명 매핑
 
@@ -67,3 +75,9 @@ UI와 기능의 **정식 명칭** 사전입니다. Human과 AI가 동일한 명�
 | `undo_missing` | 되돌리지 못했습니다: 파일이 없어졌습니다 | 그 작업은 기록에서 빠진다 |
 | `kind: link` | (점선 폴더 아이콘) | 다른 곳을 가리키는 연결 폴더. 펼쳐지지 않는다 |
 | `clipboard.mode: cut` | (흐리게 표시) | 잘라내어 붙여넣기를 기다리는 항목 |
+| `pwsh` / `cmd` | 터미널 줄: PowerShell / cmd + 번호 | PowerShell 7 / 명령 프롬프트. `core/src/domain/terminal_rules.cpp` |
+| `agent: "Claude Code"` 등 | (에이전트 이름과 채운 점). 읽어 주는 이름은 "PowerShell 1, Claude Code 실행 중" | 그 터미널에서 에이전트가 돌고 있음 |
+| `busy: true` | (표시 없음) | 셸 안에서 무언가 돌고 있음. 닫기 전에 확인을 묻는 기준 |
+| `busy` (거절 이유) | 실행 중인 프로그램이 있습니다. 닫으면 종료됩니다 | 닫기 확인 창 |
+| `no_shell` | 터미널을 띄우지 못했습니다: 이 컴퓨터에서 쓸 수 있는 셸을 찾지 못했습니다 | 작업 영역에 표시 |
+| `start_failed` | 터미널을 띄우지 못했습니다: 셸을 시작하지 못했습니다 | |

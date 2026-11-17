@@ -150,7 +150,7 @@ describe("파일 칸", () => {
     assert.ok(agentsBox.y + agentsBox.height <= filesBox.y + 1, "에이전트 칸이 파일 칸 위에 있다");
     assert.ok(Math.abs(agentsBox.height - filesBox.height) <= 1, "두 칸이 높이를 반씩 나눠 쓴다");
     assert.match(await agents.locator(".pane__title").innerText(), /에이전트$/);
-    assert.equal(await agents.locator(".pane__empty").innerText(), "에이전트가 없습니다");
+    await agents.getByRole("list", { name: "터미널 목록" }).waitFor();
     assert.match(await files.locator(".pane__title").innerText(), /파일$/);
   });
 
@@ -410,7 +410,7 @@ describe("파일 칸", () => {
     await page.keyboard.press("F2");
     await page.getByRole("textbox", { name: "새 이름" }).fill("cancelled.txt");
     await page.keyboard.press("Escape");
-    await page.getByRole("textbox").waitFor({ state: "detached" });
+    await page.locator(".filepane").getByRole("textbox").waitFor({ state: "detached" });
     assert.equal(exists("t18/new.txt"), true);
 
     await page.keyboard.press("F2");
@@ -453,12 +453,12 @@ describe("파일 칸", () => {
     await page.mouse.click(blank.x, blank.y, { button: "right" });
     await menuItem("새 파일").click();
     await typeName("새 파일 이름", "");
-    await page.getByRole("textbox").waitFor({ state: "detached" });
+    await page.locator(".filepane").getByRole("textbox").waitFor({ state: "detached" });
     await page.mouse.click(blank.x, blank.y, { button: "right" });
     await menuItem("새 폴더").click();
     await page.getByRole("textbox", { name: "새 폴더 이름" }).fill("never");
     await page.keyboard.press("Escape");
-    await page.getByRole("textbox").waitFor({ state: "detached" });
+    await page.locator(".filepane").getByRole("textbox").waitFor({ state: "detached" });
     assert.equal(readdirSync(alpha).length, count);
     rmSync(at("at-root.txt"));
   });
@@ -671,7 +671,7 @@ describe("파일 칸", () => {
     await page.keyboard.press("Control+v");
     await waitUntil(() => exists("t30/dest/go.txt"), "붙여넣으면 옮겨짐");
     assert.equal(exists("t30/go.txt"), false);
-    assert.equal(await page.locator(".filerow--cut").count(), 0);
+    await page.locator(".filerow--cut").waitFor({ state: "detached" });
 
     await row("t30/clash.txt").click();
     await page.keyboard.press("Control+x");
@@ -730,7 +730,10 @@ describe("파일 칸", () => {
   test("AC9 프로젝트 폴더가 없어지면 파일 칸에 폴더를 찾을 수 없다고 표시된다", async () => {
     await page.getByRole("tab", { name: "beta" }).click();
     await row("b.txt").waitFor();
-    rmSync(beta, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    // 그 폴더에서 떠 있는 터미널이 있으면 Windows가 폴더를 지우지 못하게 막는다. 터미널을 먼저 닫는다
+    await page.locator(".agentrow__close").click();
+    await page.locator(".agentrow").waitFor({ state: "detached" });
+    rmSync(beta, { recursive: true, force: true, maxRetries: 25, retryDelay: 200 });
 
     const pane = page.getByRole("region", { name: "파일 칸" });
     await pane.getByText("폴더를 찾을 수 없습니다").waitFor({ timeout: 5000 });

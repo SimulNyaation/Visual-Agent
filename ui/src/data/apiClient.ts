@@ -9,13 +9,20 @@ import {
   type UndoneOperation,
 } from "../domain/fileTree";
 import { parseProjectTabsState, type ProjectTabsState } from "../domain/projectTabs";
+import {
+  parseOpened,
+  parseTerminalEvents,
+  type TerminalEvents,
+  type TerminalInfo,
+} from "../domain/terminals";
 
 export interface ProjectTabsApi {
   fetchState(): Promise<ProjectTabsState>;
   /** 폴더 선택 창을 띄워 고른 폴더를 탭으로 연다. 취소하면 탭은 그대로다 */
   addProject(): Promise<ProjectTabsState>;
   selectTab(id: string): Promise<ProjectTabsState>;
-  closeTab(id: string): Promise<ProjectTabsState>;
+  /** 터미널에서 실행 중인 프로그램이 있으면 닫지 않고 busy로 거절한다. force면 묻지 않고 닫는다 */
+  closeTab(id: string, force: boolean): Promise<CloseTabResult>;
 }
 
 /** 코어가 거절한 이유. 연결이 끊긴 경우는 이것이 아니라 예외로 알린다 */
@@ -23,6 +30,9 @@ export interface Refused {
   ok: false;
   error: string;
 }
+export type CloseTabResult = { ok: true; state: ProjectTabsState } | Refused;
+export type OpenTerminalResult = { ok: true; terminal: TerminalInfo | null } | Refused;
+export type CloseTerminalResult = { ok: true } | Refused;
 export type ListResult = { ok: true; dirs: FolderListing[] } | Refused;
 export type FileResult = { ok: true; changes: FileChange[] } | Refused;
 export type UndoResult = { ok: true; undone: UndoneOperation } | Refused;
@@ -44,7 +54,20 @@ export interface FilesApi {
   undo(tabId: string): Promise<UndoResult>;
 }
 
-export type CoreApi = ProjectTabsApi & FilesApi;
+export interface TerminalsApi {
+  /** automatic이면 이번 실행에서 그 탭에 자동으로 띄운 적이 없을 때만 띄운다 (아니면 terminal이 null) */
+  openTerminal(tabId: string, automatic: boolean): Promise<OpenTerminalResult>;
+  sendInput(id: string, data: string): Promise<void>;
+  resizeTerminal(id: string, columns: number, rows: number): Promise<void>;
+  /** 실행 중인 프로그램이 있으면 닫지 않고 busy로 거절한다. force면 묻지 않고 닫는다 */
+  closeTerminal(id: string, force: boolean): Promise<CloseTerminalResult>;
+  /** 새 출력이 있거나 터미널 목록이 version과 달라질 때까지 기다린다 */
+  waitForTerminalEvents(version: number): Promise<TerminalEvents>;
+  /** 앱 닫기 확인 창의 답 */
+  answerQuit(confirm: boolean): Promise<void>;
+}
+
+export type CoreApi = ProjectTabsApi & FilesApi & TerminalsApi;
 
 const paths = {
   state: "/api/state",
@@ -52,6 +75,11 @@ const paths = {
   tab: (id: string) => `/api/tabs/${encodeURIComponent(id)}`,
   selectTab: (id: string) => `/api/tabs/${encodeURIComponent(id)}/select`,
   files: (id: string, action: string) => `/api/tabs/${encodeURIComponent(id)}/files/${action}`,
+  forceCloseTab: (id: string) => `/api/tabs/${encodeURIComponent(id)}?force=1`,
+  tabTerminals: (id: string) => `/api/tabs/${encodeURIComponent(id)}/terminals`,
+  terminal: (id: string, action: string) => `/api/terminals/${encodeURIComponent(id)}/${action}`,
+  terminalEvents: "/api/terminals/events",
+  quit: "/api/app/quit",
 };
 
 export function createApiClient(token: string): CoreApi {
@@ -89,6 +117,22 @@ export function createApiClient(token: string): CoreApi {
     return parsed;
   }
 
+  /** 답의 모양을 확인해 돌려준다. 코어가 거절했거나 모양이 다르면 예외 */
+  async function expect<T>(method: string, path: string, body: unknown, parse: (value: unknown) => T | undefined): Promise<T> {
+    const response = await send(method, path, body);
+    if (!response.ok) throw new Error(`코어 요청 실패: ${method} ${path} → ${response.status}`);
+    const parsed = parse(await response.json());
+    if (parsed === undefined) throw new Error(`코어 응답을 이해할 수 없습니다: ${method} ${path}`);
+    return parsed;
+  }
+
+  /** 답의 내용이 필요 없는 요청. 코어가 거절하면 이유를 돌려준다 */
+  async function command(path: string, body: unknown): Promise<{ ok: true } | Refused> {
+    const response = await send("POST", path, body);
+    if (!response.ok) return { ok: false, error: parseErrorCode(await response.json()) };
+    return { ok: true };
+  }
+
   const asList = (value: unknown): ListResult | undefined => {
     const dirs = parseListings(value);
     return dirs && { ok: true, dirs };
@@ -106,7 +150,15 @@ export function createApiClient(token: string): CoreApi {
     fetchState: () => request("GET", paths.state),
     addProject: () => request("POST", paths.tabs, {}),
     selectTab: (id) => request("POST", paths.selectTab(id)),
-    closeTab: (id) => request("DELETE", paths.tab(id)),
+    closeTab: async (id, force) => {
+      const path = force ? paths.forceCloseTab(id) : paths.tab(id);
+      const response = await send("DELETE", path);
+      const value: unknown = await response.json();
+      if (!response.ok) return { ok: false, error: parseErrorCode(value) };
+      const state = parseProjectTabsState(value);
+      if (!state) throw new Error(`코어 응답을 이해할 수 없습니다: DELETE ${path}`);
+      return { ok: true, state };
+    },
 
     list: (tabId, dirs) => files(tabId, "list", { dirs }, asList),
     waitForChanges: (tabId, known, signal) => files(tabId, "changes", { dirs: known }, asList, signal),
@@ -116,5 +168,26 @@ export function createApiClient(token: string): CoreApi {
     create: (tabId, parent, name, kind) => files(tabId, "create", { parent, name, kind }, asChanges),
     trash: (tabId, items) => files(tabId, "trash", { items }, asChanges),
     undo: (tabId) => files(tabId, "undo", {}, asUndone),
+
+    openTerminal: async (tabId, automatic) => {
+      const path = paths.tabTerminals(tabId);
+      const response = await send("POST", path, { automatic });
+      const value: unknown = await response.json();
+      if (!response.ok) return { ok: false, error: parseErrorCode(value) };
+      const terminal = parseOpened(value);
+      if (terminal === undefined) throw new Error(`코어 응답을 이해할 수 없습니다: POST ${path}`);
+      return { ok: true, terminal };
+    },
+    sendInput: async (id, data) => {
+      await command(paths.terminal(id, "input"), { data });
+    },
+    resizeTerminal: async (id, columns, rows) => {
+      await command(paths.terminal(id, "resize"), { columns, rows });
+    },
+    closeTerminal: (id, force) => command(paths.terminal(id, "close"), { force }),
+    waitForTerminalEvents: (version) => expect("POST", paths.terminalEvents, { version }, parseTerminalEvents),
+    answerQuit: async (confirm) => {
+      await command(paths.quit, { confirm });
+    },
   };
 }

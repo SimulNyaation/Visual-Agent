@@ -18,13 +18,13 @@
 npm run check
 ```
 
-스크립트 인코딩 검사 → 화면 타입 검사 → 화면 린트 → 색상표 검사 → 화면 테스트 → 코어 파일 규칙 검사 → 화면 빌드 → 코어 빌드 → 코어 테스트 → 실행 파일 묶기 → 앱 창 테스트 순으로 돌고, 하나라도 실패하면 멈춘다. 마지막 단계에서 실제 앱 창이 두 번, 합쳐 1분쯤 떴다가 닫힌다. 앱 창 테스트는 마우스 커서를 움직이지 않고, 지운 파일을 실제 휴지통이 아닌 임시 폴더로 보낸다.
+스크립트 인코딩 검사 → 화면 타입 검사 → 화면 린트 → 색상표 검사 → 화면 테스트 → 코어 파일 규칙 검사 → 화면 빌드 → 코어 빌드 → 코어 테스트 → 실행 파일 묶기 → 앱 창 테스트 순으로 돌고, 하나라도 실패하면 멈춘다. 마지막 단계에서 실제 앱 창이 여러 번, 합쳐 2분쯤 떴다가 닫힌다. 앱 창 테스트는 마우스 커서를 움직이지 않고, Windows 클립보드를 건드리지 않으며, 지운 파일을 실제 휴지통이 아닌 임시 폴더로 보낸다. 코어 테스트와 앱 창 테스트는 실제 셸(명령 프롬프트, PowerShell)을 띄운다.
 
 베이스라인 파일: 없음
 
 필요한 도구: Visual Studio Build Tools 2022(C++, CMake 도구 포함), vcpkg(`%USERPROFILE%\vcpkg` 또는 `VCPKG_ROOT`), Node.js. 처음 한 번 `ui/`에서 `npm install`.
 
-제목 표시줄, 창 버튼, 창 틀을 바꾼 변경과 파일 칸의 마우스·키보드 입력을 바꾼 변경은 품질 게이트에 더해 `npm run e2e:mouse`도 통과해야 한다. 품질 게이트의 앱 창 테스트는 창에 신호를 보내거나 화면 안으로 입력을 넣어 주는 방식이라 실제 클릭과 실제 키 입력이 도달하는지는 확인하지 못한다.
+제목 표시줄, 창 버튼, 창 틀을 바꾼 변경과 파일 칸·터미널의 마우스·키보드 입력(복사·붙여넣기 포함)을 바꾼 변경은 품질 게이트에 더해 `npm run e2e:mouse`도 통과해야 한다. 품질 게이트의 앱 창 테스트는 창에 신호를 보내거나 화면 안으로 입력을 넣어 주는 방식이라 실제 클릭과 실제 키 입력이 도달하는지는 확인하지 못한다.
 
 ## 실행·증적 수집 명령
 
@@ -34,11 +34,14 @@ npm run check
 | 앱 실행 | `npm start` 또는 `build\dist\Visual-Agent\Visual-Agent.exe` |
 | 앱 창 테스트 | `cd ui && npm run e2e` |
 | 앱 창 테스트 + 스크린샷 | `VA_EVIDENCE_DIR=<폴더>`를 정하고 `npm run e2e` |
-| 실제 마우스·키보드로 창 버튼·창 다루기·파일 칸 테스트 | `cd ui && npm run e2e:mouse` (커서가 움직이고 키가 눌린다. 1분쯤 걸리며 도는 동안 마우스와 키보드를 건드리지 않는다) |
+| 실제 마우스·키보드로 창 버튼·창 다루기·파일 칸·터미널 테스트 | `cd ui && npm run e2e:mouse` (커서가 움직이고 키가 눌리며 클립보드의 글자가 잠깐 바뀐다. 2분쯤 걸리며 도는 동안 마우스와 키보드를 건드리지 않는다. 다른 창을 누르면 "app window is not in front"로 실패한다) |
 | 스크린샷 수집 | `scripts/capture-window.ps1 -ProcessId <pid> -Out <png>` |
 | 메모리 비교 (Orca) | `scripts/measure-memory.ps1` |
 | 테스트용 설정 폴더 | 환경 변수 `VA_DATA_DIR` (지정하면 개인 설정 대신 그 폴더를 쓴다) |
 | 테스트용 휴지통 | 환경 변수 `VA_TRASH_DIR` (지정하면 지운 것을 Windows 휴지통 대신 그 폴더로 옮긴다) |
+| 설치된 셸 숨기기 | 환경 변수 `VA_HIDE_SHELLS` (쉼표로 적은 셸을 없는 것으로 친다. 이름은 `pwsh`, `cmd`. `pwsh`만 적으면 명령 프롬프트로 뜬다) |
+| 시험용 에이전트 | `build\core\va_fake_agent.exe [기록 파일]` (화면 전체를 쓰고 받은 키를 적는다. `claude.exe`로 이름을 바꿔 실행하면 Claude Code로 표시된다) |
+| 메모리 비교, 터미널 3개 (Orca) | `cd ui && node e2e/measure-terminals.mjs 3 30` (Orca에서도 터미널 3개를 띄워 둔 상태로 잰다) |
 | 실제 Windows 휴지통 확인 | `build\core\va_tests.exe -tc="recycle-bin-real*" --no-skip` (돌릴 때마다 휴지통에 `va-recycle-…` 항목이 남는다) |
 | 코어 파일 규칙 검사만 | `node scripts/lint-core-files.mjs` |
 | SNS 계정·토큰 | `private/` (자격 증명 기재 금지, 저장소 커밋 금지) |
@@ -69,3 +72,4 @@ npm run check
 - 아이폰 등 다른 기기에서의 접속 경로
 - 개인 설정 파일(`state.json`)의 형식 변경
 - 사용자 파일을 옮기거나 지우거나 덮어쓸 수 있는 코드 (`core/src/data/project_files.cpp`, `recycle_bin.cpp`)
+- 프로그램을 실행하거나 끝내는 코드 (`core/src/data/pty.cpp`, `terminals.cpp`)

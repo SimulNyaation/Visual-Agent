@@ -92,14 +92,14 @@ describe("앱 뼈대", () => {
 
   test("AC4 탭을 누르면 사이드바와 작업 영역이 그 프로젝트 것으로 바뀐다", async () => {
     assert.equal((await sidebarText(app.page)).trim(), "beta");
-    assert.equal((await workAreaText(app.page)).trim(), "beta · 열린 창이 없습니다");
+    await app.page.locator('.agentrow__select[aria-current="true"]').waitFor();
     app.screenshot("AC4-tab-beta.png");
 
     await app.page.getByRole("tab", { name: "alpha" }).click();
     await waitUntil(async () => (await selectedTab(app.page)) === "alpha", "alpha 탭이 선택됨");
 
     assert.equal((await sidebarText(app.page)).trim(), "alpha");
-    assert.equal((await workAreaText(app.page)).trim(), "alpha · 열린 창이 없습니다");
+    await app.page.locator('.agentrow__select[aria-current="true"]').waitFor();
     app.screenshot("AC4-tab-alpha.png");
   });
 
@@ -110,16 +110,31 @@ describe("앱 뼈대", () => {
     assert.deepEqual(await tabLabels(app.page), ["alpha", "beta"]);
   });
 
-  test("AC9 누를 수 있는 것은 프로젝트 탭, 탭 닫기, 프로젝트 추가, 사이드바 두 칸의 제목, 파일 칸뿐이다", async () => {
+  test("AC9 누를 수 있는 것은 프로젝트 탭, 탭 닫기, 프로젝트 추가, 사이드바 두 칸의 제목, 터미널과 그 버튼들, 파일 칸뿐이다", async () => {
+    await app.page.locator(".termview .xterm").waitFor();
     const pressable = await app.page.evaluate(() =>
       [...document.querySelectorAll("button, a, input, select, textarea, summary, [role='button'], [role='link'], [role='menuitem'], [tabindex], [contenteditable]")]
         .map((element) => element.getAttribute("aria-label") ?? element.textContent ?? "")
         .sort(),
     );
-    // 사이드바의 두 칸과 파일 칸은 SPEC-20261116-file-explorer에서 추가됐다. 프로젝트 폴더가 비어 있어 파일 줄은 없다
+    // 사이드바의 두 칸과 파일 칸은 SPEC-20261116-file-explorer에서, 터미널과 터미널 줄·새 터미널은 SPEC-20261116-terminal에서 추가됐다.
+    // 프로젝트 폴더가 비어 있어 파일 줄은 없다
     assert.deepEqual(
       pressable,
-      ["alpha", "alpha 탭 닫기", "beta", "beta 탭 닫기", "프로젝트 추가", "▾에이전트", "▾파일", "파일"].sort(),
+      [
+        "alpha",
+        "alpha 탭 닫기",
+        "beta",
+        "beta 탭 닫기",
+        "프로젝트 추가",
+        "▾에이전트",
+        "새 터미널",
+        "PowerShell 1",
+        "PowerShell 1 닫기",
+        "터미널 입력",
+        "▾파일",
+        "파일",
+      ].sort(),
     );
   });
 
@@ -255,7 +270,7 @@ describe("앱 뼈대", () => {
     app.screenshot("AC8-missing-folder.png");
 
     await app.page.getByRole("tab", { name: "alpha" }).click();
-    await waitUntil(async () => (await workAreaText(app.page)).trim() === "alpha · 열린 창이 없습니다", "alpha 탭은 정상");
+    await waitUntil(async () => !(await workAreaText(app.page)).includes("폴더를 찾을 수 없습니다"), "alpha 탭은 정상");
 
     await app.page.getByRole("button", { name: "beta 탭 닫기" }).click();
     await waitUntil(async () => (await tabLabels(app.page)).length === 1, "없어진 폴더의 탭이 닫힘");

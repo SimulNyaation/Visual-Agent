@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { fakeCore, type FakeCore } from "../../test/fakeCore";
 import { ProjectWorkspace } from "../projectTabs/ProjectWorkspace";
 import { createProjectTabsStore } from "../projectTabs/projectTabsStore";
+import { fakeScreens } from "../../test/fakeScreen";
+import { createTerminalStore } from "../terminals/terminalStore";
 import { createFileTreeStore } from "./fileTreeStore";
 
 const ALPHA = "C:\\work\\alpha";
@@ -20,7 +22,8 @@ async function openProject(options: { files?: string[]; picks?: string[]; missin
   const store = createProjectTabsStore(core.api);
   const fileStore = createFileTreeStore(core.api, store);
   await store.load();
-  render(<ProjectWorkspace store={store} fileStore={fileStore} captionWidth={138} />);
+  const terminalStore = createTerminalStore(core.api, store, fakeScreens().create);
+  render(<ProjectWorkspace store={store} fileStore={fileStore} terminalStore={terminalStore} captionWidth={138} />);
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "폴더 선택" }));
   for (let extra = 1; extra < picks.length; extra++) {
@@ -57,12 +60,12 @@ async function expectPaths(core: FakeCore, expected: string[]) {
 }
 
 describe("사이드바의 두 칸", () => {
-  it("위는 에이전트 칸, 아래는 파일 칸이고 에이전트 칸에는 에이전트가 없다고 표시된다 (AC1, AC2)", async () => {
+  it("위는 에이전트 칸, 아래는 파일 칸이고 에이전트 칸에는 터미널 목록이 표시된다 (AC1)", async () => {
     await openProject();
     const panes = screen.getAllByRole("region", { name: / 칸$/ });
     expect(panes.map((pane) => pane.getAttribute("aria-label"))).toEqual(["에이전트 칸", "파일 칸"]);
     expect(within(panes[0]!).getByRole("button", { name: "에이전트" })).toBeInTheDocument();
-    expect(within(panes[0]!).getByText("에이전트가 없습니다")).toBeInTheDocument();
+    expect(await within(panes[0]!).findByRole("list", { name: "터미널 목록" })).toBeInTheDocument();
     expect(within(panes[1]!).getByRole("button", { name: "파일" })).toBeInTheDocument();
   });
 
@@ -80,7 +83,7 @@ describe("사이드바의 두 칸", () => {
     expect(await findRow("readme.md")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "에이전트" }));
-    expect(screen.queryByText("에이전트가 없습니다")).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "터미널 목록" })).not.toBeInTheDocument();
   });
 });
 

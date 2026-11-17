@@ -14,7 +14,8 @@ export interface ProjectTabsStore {
   load(): Promise<void>;
   addProject(): Promise<void>;
   selectTab(id: string): Promise<void>;
-  closeTab(id: string): Promise<void>;
+  /** 터미널에서 실행 중인 프로그램이 있어 닫지 않았으면 "busy". force면 묻지 않고 닫는다 */
+  closeTab(id: string, force?: boolean): Promise<"closed" | "busy">;
 }
 
 export function createProjectTabsStore(api: ProjectTabsApi): ProjectTabsStore {
@@ -45,6 +46,21 @@ export function createProjectTabsStore(api: ProjectTabsApi): ProjectTabsStore {
     load: () => apply(() => api.fetchState()),
     addProject: () => apply(() => api.addProject()),
     selectTab: (id) => apply(() => api.selectTab(id)),
-    closeTab: (id) => apply(() => api.closeTab(id)),
+    async closeTab(id, force = false) {
+      try {
+        const result = await api.closeTab(id, force);
+        if (result.ok) {
+          publish({ status: "ready", state: result.state });
+        } else if (result.error === "busy") {
+          return "busy";
+        } else {
+          // 이미 닫힌 탭이면 코어의 지금 상태를 다시 받아 맞춘다
+          publish({ status: "ready", state: await api.fetchState() });
+        }
+      } catch {
+        publish({ status: "disconnected", state: snapshot.state });
+      }
+      return "closed";
+    },
   };
 }

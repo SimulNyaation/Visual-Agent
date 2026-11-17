@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <string>
 #include <system_error>
+#include <vector>
 
 #include <windows.h>
 
@@ -10,6 +11,7 @@
 #include "app/app_window.h"
 #include "data/recycle_bin.h"
 #include "data/settings_store.h"
+#include "data/shell_finder.h"
 #include "server/api_server.h"
 
 namespace {
@@ -42,6 +44,23 @@ std::wstring environment(const wchar_t* name) {
         GetEnvironmentVariableW(name, value.data(), static_cast<DWORD>(value.size()));
     value.resize(length);
     return value;
+}
+
+// VA_HIDE_SHELLS에 쉼표로 적힌 셸은 없는 것으로 친다. 자동 테스트가 "그 셸이 설치되지 않은 컴퓨터"를 흉내 내기 위함이다
+std::vector<std::string> hiddenShells() {
+    const std::wstring raw = environment(L"VA_HIDE_SHELLS");
+    std::vector<std::string> hidden;
+    std::string part;
+    for (const wchar_t c : raw + L",") {
+        if (c != L',') {
+            // 셸의 내부 이름은 영문자뿐이다
+            part.push_back(static_cast<char>(c));
+        } else if (!part.empty()) {
+            hidden.push_back(part);
+            part.clear();
+        }
+    }
+    return hidden;
 }
 
 struct DataFolders {
@@ -93,6 +112,8 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
     const std::wstring trashDir = environment(L"VA_TRASH_DIR");
     options.trash = trashDir.empty() ? va::data::recycleBinTrash()
                                      : va::data::folderTrash(std::filesystem::path(trashDir));
+    options.shells = va::data::findShells(hiddenShells());
+    options.quit = [&window] { window.forceClose(); };
     const std::string token = options.token;
 
     va::server::ApiServer server(std::move(options), va::data::SettingsStore(folders.settings));
@@ -102,6 +123,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
         return 1;
     }
 
+    window.setCloseGuard([&server] { return server.requestClose(); });
     window.loadUi({L"http://127.0.0.1:" + std::to_wstring(server.port()) + L"/index.html",
                    folders.webview.wstring(), token});
     const int exitCode = window.run();

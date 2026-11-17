@@ -31,6 +31,24 @@
   --teal: #5F9A8F;   /* 바랜 청록 — 링크, 정보 */
   --rust: #CF6A45;   /* 녹슨 주홍 — 반려, 미충족, 오류 */
 
+  /* 터미널의 16색. 터미널 안의 프로그램이 "빨강", "밝은 파랑"처럼 이름으로 고르는 색이다 */
+  --term-black: #26211B;
+  --term-red: #CF6A45;
+  --term-green: #8FA65A;
+  --term-yellow: #D9A441;
+  --term-blue: #7092B5;
+  --term-magenta: #B5839C;
+  --term-cyan: #5F9A8F;
+  --term-white: #B8AB91;
+  --term-bright-black: #91856F;
+  --term-bright-red: #E08A66;
+  --term-bright-green: #A9B88C;
+  --term-bright-yellow: #E8BE6A;
+  --term-bright-blue: #93B3D1;
+  --term-bright-magenta: #CFA3B8;
+  --term-bright-cyan: #86B8AE;
+  --term-bright-white: #E9DFC9;
+
   /* 형광펜 (문서 창) */
   --mark-ochre: rgba(217, 164, 65, 0.30);
   --mark-acacia: rgba(143, 166, 90, 0.30);
