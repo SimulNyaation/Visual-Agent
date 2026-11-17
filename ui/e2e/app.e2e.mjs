@@ -117,7 +117,7 @@ describe("앱 뼈대", () => {
         .map((element) => element.getAttribute("aria-label") ?? element.textContent ?? "")
         .sort(),
     );
-    // 사이드바의 두 칸과 파일 칸은 SPEC-20261116-file-explorer에서, 터미널과 터미널 줄·새 터미널은 SPEC-20261116-terminal에서 추가됐다.
+    // 사이드바의 두 칸과 파일 칸은 SPEC-20261116-file-explorer에서, 터미널과 터미널 줄·새 터미널은 SPEC-20261116-terminal에서, 두 경계는 SPEC-20261117-resize-panes에서 추가됐다.
     // 프로젝트 폴더가 비어 있어 파일 줄은 없다
     assert.deepEqual(
       pressable,
@@ -134,6 +134,8 @@ describe("앱 뼈대", () => {
         "터미널 입력",
         "▾파일",
         "파일",
+        "사이드바 너비 조절",
+        "에이전트 칸과 파일 칸의 높이 조절",
       ].sort(),
     );
   });

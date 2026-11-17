@@ -5,6 +5,7 @@ import { fakeCore, type FakeCore } from "../../test/fakeCore";
 import { ProjectWorkspace } from "../projectTabs/ProjectWorkspace";
 import { createProjectTabsStore } from "../projectTabs/projectTabsStore";
 import { fakeScreens } from "../../test/fakeScreen";
+import { createLayoutStore } from "../layout/layoutStore";
 import { createTerminalStore } from "../terminals/terminalStore";
 import { createFileTreeStore } from "./fileTreeStore";
 
@@ -23,7 +24,7 @@ async function openProject(options: { files?: string[]; picks?: string[]; missin
   const fileStore = createFileTreeStore(core.api, store);
   await store.load();
   const terminalStore = createTerminalStore(core.api, store, fakeScreens().create);
-  render(<ProjectWorkspace store={store} fileStore={fileStore} terminalStore={terminalStore} captionWidth={138} />);
+  render(<ProjectWorkspace store={store} fileStore={fileStore} terminalStore={terminalStore} layoutStore={createLayoutStore(core.api)} captionWidth={138} />);
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "폴더 선택" }));
   for (let extra = 1; extra < picks.length; extra++) {

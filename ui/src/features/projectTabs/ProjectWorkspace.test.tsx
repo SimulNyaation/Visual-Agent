@@ -5,6 +5,7 @@ import type { CoreApi } from "../../data/apiClient";
 import { fakeCore as createFakeCore } from "../../test/fakeCore";
 import { fakeScreens } from "../../test/fakeScreen";
 import { createFileTreeStore } from "../fileTree/fileTreeStore";
+import { createLayoutStore } from "../layout/layoutStore";
 import { createTerminalStore } from "../terminals/terminalStore";
 import { ProjectWorkspace } from "./ProjectWorkspace";
 import { createProjectTabsStore } from "./projectTabsStore";
@@ -17,7 +18,7 @@ async function renderWorkspace(api: CoreApi) {
   const fileStore = createFileTreeStore(api, store);
   await store.load();
   const terminalStore = createTerminalStore(api, store, fakeScreens().create);
-  render(<ProjectWorkspace store={store} fileStore={fileStore} terminalStore={terminalStore} captionWidth={138} />);
+  render(<ProjectWorkspace store={store} fileStore={fileStore} terminalStore={terminalStore} layoutStore={createLayoutStore(api)} captionWidth={138} />);
   return userEvent.setup();
 }
 
@@ -151,6 +152,8 @@ describe("누를 수 있는 것 (AC9)", () => {
         "PowerShell 1 닫기",
         "▾파일",
         "파일",
+        "사이드바 너비 조절",
+        "에이전트 칸과 파일 칸의 높이 조절",
       ].sort(),
     );
   });

@@ -12,6 +12,7 @@ import { App } from "./app/App";
 import { createApiClient } from "./data/apiClient";
 import { readHostInfo } from "./data/hostInfo";
 import { createFileTreeStore } from "./features/fileTree/fileTreeStore";
+import { createLayoutStore } from "./features/layout/layoutStore";
 import { createProjectTabsStore } from "./features/projectTabs/projectTabsStore";
 import { createTerminalStore } from "./features/terminals/terminalStore";
 import { createXtermScreen } from "./ui/xtermScreen";
@@ -21,12 +22,20 @@ const api = createApiClient(host.token);
 const store = createProjectTabsStore(api);
 const fileStore = createFileTreeStore(api, store);
 const terminalStore = createTerminalStore(api, store, createXtermScreen);
+const layoutStore = createLayoutStore(api);
 void store.load();
+void layoutStore.load();
 
 const root = document.getElementById("root");
 if (!root) throw new Error("index.html에 #root 요소가 없습니다");
 createRoot(root).render(
   <StrictMode>
-    <App store={store} fileStore={fileStore} terminalStore={terminalStore} captionWidth={host.captionWidth} />
+    <App
+      store={store}
+      fileStore={fileStore}
+      terminalStore={terminalStore}
+      layoutStore={layoutStore}
+      captionWidth={host.captionWidth}
+    />
   </StrictMode>,
 );

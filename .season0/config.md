@@ -24,7 +24,7 @@ npm run check
 
 필요한 도구: Visual Studio Build Tools 2022(C++, CMake 도구 포함), vcpkg(`%USERPROFILE%\vcpkg` 또는 `VCPKG_ROOT`), Node.js. 처음 한 번 `ui/`에서 `npm install`.
 
-제목 표시줄, 창 버튼, 창 틀을 바꾼 변경과 파일 칸·터미널의 마우스·키보드 입력(복사·붙여넣기 포함)을 바꾼 변경은 품질 게이트에 더해 `npm run e2e:mouse`도 통과해야 한다. 품질 게이트의 앱 창 테스트는 창에 신호를 보내거나 화면 안으로 입력을 넣어 주는 방식이라 실제 클릭과 실제 키 입력이 도달하는지는 확인하지 못한다.
+제목 표시줄, 창 버튼, 창 틀을 바꾼 변경과 파일 칸·터미널·경계의 마우스·키보드 입력(복사·붙여넣기 포함)을 바꾼 변경은 품질 게이트에 더해 `npm run e2e:mouse`도 통과해야 한다. 품질 게이트의 앱 창 테스트는 창에 신호를 보내거나 화면 안으로 입력을 넣어 주는 방식이라 실제 클릭과 실제 키 입력이 도달하는지는 확인하지 못한다.
 
 ## 실행·증적 수집 명령
 
@@ -34,7 +34,7 @@ npm run check
 | 앱 실행 | `npm start` 또는 `build\dist\Visual-Agent\Visual-Agent.exe` |
 | 앱 창 테스트 | `cd ui && npm run e2e` |
 | 앱 창 테스트 + 스크린샷 | `VA_EVIDENCE_DIR=<폴더>`를 정하고 `npm run e2e` |
-| 실제 마우스·키보드로 창 버튼·창 다루기·파일 칸·터미널 테스트 | `cd ui && npm run e2e:mouse` (커서가 움직이고 키가 눌리며 클립보드의 글자가 잠깐 바뀐다. 2분쯤 걸리며 도는 동안 마우스와 키보드를 건드리지 않는다. 다른 창을 누르면 "app window is not in front"로 실패한다) |
+| 실제 마우스·키보드로 창 버튼·창 다루기·파일 칸·터미널·크기 조절 테스트 | `cd ui && npm run e2e:mouse` (커서가 움직이고 키가 눌리며 클립보드의 글자가 잠깐 바뀐다. 2분쯤 걸리며 도는 동안 마우스와 키보드를 건드리지 않는다. 다른 창을 누르면 "app window is not in front"로 실패한다) |
 | 스크린샷 수집 | `scripts/capture-window.ps1 -ProcessId <pid> -Out <png>` |
 | 메모리 비교 (Orca) | `scripts/measure-memory.ps1` |
 | 테스트용 설정 폴더 | 환경 변수 `VA_DATA_DIR` (지정하면 개인 설정 대신 그 폴더를 쓴다) |

@@ -16,7 +16,15 @@ domain::ProjectTabs SettingsStore::load() const {
     return domain::ProjectTabs::fromJson(json);
 }
 
-bool SettingsStore::save(const domain::ProjectTabs& tabs) const {
+domain::Layout SettingsStore::loadLayout() const {
+    std::ifstream in(file_, std::ios::binary);
+    if (!in) return {};
+    const auto json = nlohmann::json::parse(in, nullptr, /*allow_exceptions=*/false);
+    if (!json.is_object() || !json.contains("layout")) return {};
+    return domain::layoutFromJson(json["layout"]);
+}
+
+bool SettingsStore::save(const domain::ProjectTabs& tabs, const domain::Layout& layout) const {
     std::error_code ec;
     std::filesystem::create_directories(directory_, ec);
     if (ec) return false;
@@ -25,7 +33,9 @@ bool SettingsStore::save(const domain::ProjectTabs& tabs) const {
     {
         std::ofstream out(temp, std::ios::binary | std::ios::trunc);
         if (!out) return false;
-        out << tabs.toJson().dump(2);
+        auto json = tabs.toJson();
+        json["layout"] = domain::layoutToJson(layout);
+        out << json.dump(2);
         if (!out.good()) return false;
     }
     std::filesystem::rename(temp, file_, ec);

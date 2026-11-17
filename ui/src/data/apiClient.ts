@@ -8,6 +8,7 @@ import {
   type FolderListing,
   type UndoneOperation,
 } from "../domain/fileTree";
+import { parseLayout, type Layout } from "../domain/layout";
 import { parseProjectTabsState, type ProjectTabsState } from "../domain/projectTabs";
 import {
   parseOpened,
@@ -67,7 +68,13 @@ export interface TerminalsApi {
   answerQuit(confirm: boolean): Promise<void>;
 }
 
-export type CoreApi = ProjectTabsApi & FilesApi & TerminalsApi;
+export interface LayoutApi {
+  fetchLayout(): Promise<Layout>;
+  /** 배치를 기억시킨다. 코어가 한계 안으로 옮긴 값을 돌려준다 */
+  saveLayout(layout: Layout): Promise<Layout>;
+}
+
+export type CoreApi = ProjectTabsApi & FilesApi & TerminalsApi & LayoutApi;
 
 const paths = {
   state: "/api/state",
@@ -76,6 +83,7 @@ const paths = {
   selectTab: (id: string) => `/api/tabs/${encodeURIComponent(id)}/select`,
   files: (id: string, action: string) => `/api/tabs/${encodeURIComponent(id)}/files/${action}`,
   forceCloseTab: (id: string) => `/api/tabs/${encodeURIComponent(id)}?force=1`,
+  layout: "/api/layout",
   tabTerminals: (id: string) => `/api/tabs/${encodeURIComponent(id)}/terminals`,
   terminal: (id: string, action: string) => `/api/terminals/${encodeURIComponent(id)}/${action}`,
   terminalEvents: "/api/terminals/events",
@@ -168,6 +176,9 @@ export function createApiClient(token: string): CoreApi {
     create: (tabId, parent, name, kind) => files(tabId, "create", { parent, name, kind }, asChanges),
     trash: (tabId, items) => files(tabId, "trash", { items }, asChanges),
     undo: (tabId) => files(tabId, "undo", {}, asUndone),
+
+    fetchLayout: () => expect("GET", paths.layout, undefined, parseLayout),
+    saveLayout: (layout) => expect("POST", paths.layout, layout, parseLayout),
 
     openTerminal: async (tabId, automatic) => {
       const path = paths.tabTerminals(tabId);

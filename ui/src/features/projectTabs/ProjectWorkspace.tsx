@@ -5,11 +5,13 @@ import { closeQuestionText } from "../../domain/terminals";
 import { AgentPane, AgentTools } from "../../ui/AgentPane";
 import { FolderPickerScreen } from "../../ui/FolderPickerScreen";
 import { HierarchySidebar } from "../../ui/HierarchySidebar";
+import { Splitter } from "../../ui/Splitter";
 import { CloseConfirmDialog, TerminalArea } from "../../ui/TerminalArea";
 import { TitleBar } from "../../ui/TitleBar";
 import { WorkArea } from "../../ui/WorkArea";
 import { FilePaneContainer } from "../fileTree/FilePaneContainer";
 import type { FileTreeStore } from "../fileTree/fileTreeStore";
+import type { LayoutStore } from "../layout/layoutStore";
 import type { TerminalStore } from "../terminals/terminalStore";
 import type { ProjectTabsStore } from "./projectTabsStore";
 
@@ -17,13 +19,18 @@ interface Props {
   store: ProjectTabsStore;
   fileStore: FileTreeStore;
   terminalStore: TerminalStore;
+  layoutStore: LayoutStore;
   /** 제목 표시줄 오른쪽에 창 버튼이 차지하는 폭 */
   captionWidth: number;
 }
 
-export function ProjectWorkspace({ store, fileStore, terminalStore, captionWidth }: Props) {
+/** 사이드바 경계의 한계를 정하는 앱 창의 너비 */
+const windowWidth = () => window.innerWidth;
+
+export function ProjectWorkspace({ store, fileStore, terminalStore, layoutStore, captionWidth }: Props) {
   const { status, state } = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const terminals = useSyncExternalStore(terminalStore.subscribe, terminalStore.getSnapshot);
+  const layout = useSyncExternalStore(layoutStore.subscribe, layoutStore.getSnapshot);
   const current = activeTab(state);
 
   return (
@@ -47,11 +54,13 @@ export function ProjectWorkspace({ store, fileStore, terminalStore, captionWidth
         <main className="body body--project">
           <HierarchySidebar
             projectName={current.name}
-            agentTools={
-              !current.missing && (
-<AgentTools onNew={() => void terminalStore.open()} />
-              )
-            }
+            width={layout.sidebarWidth}
+            agentShare={layout.agentShare}
+            onResizePanes={layoutStore.resizePanes}
+            onResizePanesEnd={() => void layoutStore.save()}
+            onNudgePanes={layoutStore.nudgePanes}
+            onResetPanes={layoutStore.resetPanes}
+            agentTools={!current.missing && <AgentTools onNew={() => void terminalStore.open()} />}
             agents={
               <AgentPane
                 terminals={terminals.terminals}
@@ -63,6 +72,15 @@ export function ProjectWorkspace({ store, fileStore, terminalStore, captionWidth
           >
             <FilePaneContainer store={fileStore} />
           </HierarchySidebar>
+          <Splitter
+            orientation="vertical"
+            label="사이드바 너비 조절"
+            value={layout.sidebarWidth}
+            onDrag={(position) => layoutStore.resizeSidebar(position, windowWidth())}
+            onDragEnd={() => void layoutStore.save()}
+            onNudge={(direction) => layoutStore.nudgeSidebar(direction, windowWidth())}
+            onReset={layoutStore.resetSidebar}
+          />
           <WorkArea path={current.path} missing={current.missing}>
             <TerminalArea
               terminalId={terminals.activeId}

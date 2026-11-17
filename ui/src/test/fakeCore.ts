@@ -2,6 +2,7 @@
 // 실제 파일 규칙(덮어쓰지 않기, 프로젝트 폴더 밖 차단 등)은 코어 테스트와 앱 창 테스트가 확인한다.
 import type { CoreApi, FileResult, ListResult } from "../data/apiClient";
 import { isSameOrInside, joinPath, nameOf, parentOf, type FileChange, type FolderListing } from "../domain/fileTree";
+import { defaultLayout, type Layout } from "../domain/layout";
 import type { ProjectTabsState } from "../domain/projectTabs";
 import type { TerminalEvents, TerminalInfo, TerminalOutput } from "../domain/terminals";
 
@@ -18,6 +19,8 @@ export interface FakeCoreOptions {
   missing?: string[];
   /** 폴더별 내용. "src/" 처럼 /로 끝나면 폴더다 */
   files?: Record<string, string[]>;
+  /** 코어가 기억하고 있는 화면 배치. 주지 않으면 처음 값 */
+  layout?: Layout;
   /** 이 컴퓨터에서 뜨는 셸. 주지 않으면 PowerShell 7. null이면 띄울 셸이 없다 */
   shell?: "pwsh" | "cmd" | null;
 }
@@ -53,6 +56,8 @@ export interface FakeTerminals {
 
 export interface FakeCore {
   api: CoreApi;
+  /** 코어가 기억하고 있는 화면 배치 */
+  layout(): Layout;
   /** 탭의 프로젝트에 지금 있는 경로들 (정렬됨, 폴더는 /로 끝남) */
   paths(folderPath: string): string[];
   /** 앱 밖에서 파일이 바뀐 것처럼 만든다 */
@@ -83,6 +88,7 @@ export function fakeCore(options: FakeCoreOptions): FakeCore {
   let mutationCount = 0;
 
   const shellId = options.shell === undefined ? "pwsh" : options.shell;
+  let layout: Layout = options.layout ?? defaultLayout;
   let terminals: TerminalInfo[] = [];
   let terminalVersion = 1;
   let nextTerminalId = 1;
@@ -223,6 +229,12 @@ export function fakeCore(options: FakeCoreOptions): FakeCore {
       const neighbor = tabs[index] ?? tabs[tabs.length - 1];
       state = { tabs, activeId: state.activeId === id ? (neighbor?.id ?? "") : state.activeId };
       return { ok: true, state: snapshot() };
+    },
+
+    fetchLayout: async () => layout,
+    saveLayout: async (next) => {
+      layout = next;
+      return layout;
     },
 
     openTerminal: async (tabId, automatic) => {
@@ -369,6 +381,7 @@ export function fakeCore(options: FakeCoreOptions): FakeCore {
 
   return {
     api,
+    layout: () => layout,
     paths(folderPath) {
       return [...projectOf(folderPath)]
         .map(([path, kind]) => (kind === "folder" ? `${path}/` : path))

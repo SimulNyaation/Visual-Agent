@@ -35,6 +35,7 @@ ApiServer::ApiServer(ApiServerOptions options, data::SettingsStore store)
     : options_(std::move(options)),
       store_(std::move(store)),
       tabs_(store_.load()),
+      layout_(store_.loadLayout()),
       server_(std::make_unique<httplib::Server>()),
       terminals_(options_.shells) {}
 
@@ -97,6 +98,24 @@ void ApiServer::registerRoutes() {
         res.set_content(stateJson(), kJson);
     });
 
+    server_->Get("/api/layout", [this](const httplib::Request&, httplib::Response& res) {
+        std::lock_guard lock(mutex_);
+        res.set_content(domain::layoutToJson(layout_).dump(), kJson);
+    });
+
+    // 사이드바 너비와 두 칸의 높이 비율을 기억한다. 한계를 벗어난 값은 한계 안으로 옮겨 답한다
+    server_->Post("/api/layout", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto body = nlohmann::json::parse(req.body, nullptr, /*allow_exceptions=*/false);
+        if (!body.is_object() || !body.contains("sidebarWidth") || !body["sidebarWidth"].is_number() ||
+            !body.contains("agentShare") || !body["agentShare"].is_number()) {
+            return sendError(res, 400, "invalid_body");
+        }
+        std::lock_guard lock(mutex_);
+        layout_ = domain::layoutFromJson(body);
+        store_.save(tabs_, layout_);
+        res.set_content(domain::layoutToJson(layout_).dump(), kJson);
+    });
+
     // 본문에 path가 있으면 그 폴더를 열고, 없으면 폴더 선택 창을 띄운다
     server_->Post("/api/tabs", [this](const httplib::Request& req, httplib::Response& res) {
         std::optional<std::filesystem::path> folder;
@@ -121,7 +140,7 @@ void ApiServer::registerRoutes() {
 
         std::lock_guard lock(mutex_);
         tabs_.open(*folder);
-        store_.save(tabs_);
+        store_.save(tabs_, layout_);
         res.set_content(stateJson(), kJson);
     });
 
@@ -131,7 +150,7 @@ void ApiServer::registerRoutes() {
                       if (!tabs_.select(req.matches[1].str())) {
                           return sendError(res, 404, "tab_not_found");
                       }
-                      store_.save(tabs_);
+                      store_.save(tabs_, layout_);
                       res.set_content(stateJson(), kJson);
                   });
 
@@ -144,7 +163,7 @@ void ApiServer::registerRoutes() {
                         }
                         std::lock_guard lock(mutex_);
                         if (!tabs_.close(id)) return sendError(res, 404, "tab_not_found");
-                        store_.save(tabs_);
+                        store_.save(tabs_, layout_);
                         {
                             std::lock_guard files(filesMutex_);
                             history_.erase(id);

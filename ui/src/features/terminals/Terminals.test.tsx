@@ -6,6 +6,7 @@ import { fakeScreens } from "../../test/fakeScreen";
 import { createFileTreeStore } from "../fileTree/fileTreeStore";
 import { ProjectWorkspace } from "../projectTabs/ProjectWorkspace";
 import { createProjectTabsStore } from "../projectTabs/projectTabsStore";
+import { createLayoutStore } from "../layout/layoutStore";
 import { createTerminalStore } from "./terminalStore";
 
 const ALPHA = "C:\\work\\alpha";
@@ -20,7 +21,7 @@ async function openProject(options: { picks?: string[]; missing?: string[]; shel
   const fileStore = createFileTreeStore(core.api, store);
   const terminalStore = createTerminalStore(core.api, store, screens.create);
   await store.load();
-  render(<ProjectWorkspace store={store} fileStore={fileStore} terminalStore={terminalStore} captionWidth={138} />);
+  render(<ProjectWorkspace store={store} fileStore={fileStore} terminalStore={terminalStore} layoutStore={createLayoutStore(core.api)} captionWidth={138} />);
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "폴더 선택" }));
   for (let extra = 1; extra < picks.length; extra++) {
@@ -92,6 +93,7 @@ describe("터미널이 뜬다", () => {
         store={store}
         fileStore={createFileTreeStore(core.api, store)}
         terminalStore={terminalStore}
+        layoutStore={createLayoutStore(core.api)}
         captionWidth={138}
       />,
     );

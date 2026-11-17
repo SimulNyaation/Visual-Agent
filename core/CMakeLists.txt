@@ -30,6 +30,7 @@ add_library(va_core STATIC
   src/domain/project_tabs.cpp
   src/domain/file_rules.cpp
   src/domain/terminal_rules.cpp
+  src/domain/layout.cpp
   src/data/settings_store.cpp
   src/data/project_files.cpp
   src/data/recycle_bin.cpp
@@ -62,6 +63,7 @@ add_executable(va_tests
   tests/project_files_test.cpp
   tests/file_routes_test.cpp
   tests/terminal_rules_test.cpp
+  tests/layout_test.cpp
   tests/terminals_test.cpp
   tests/terminal_routes_test.cpp
   tests/settings_store_test.cpp

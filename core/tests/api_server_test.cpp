@@ -196,3 +196,64 @@ TEST_CASE_FIXTURE(Fixture, "다시 실행했을 때 없어진 폴더의 탭은 m
     REQUIRE(res);
     CHECK(json::parse(res->body)["tabs"].size() == 1);
 }
+
+TEST_CASE_FIXTURE(Fixture, "화면 배치를 기억하고, 다시 실행해도 그대로다 (AC11)") {
+    auto http = client();
+    auto res = http.Get("/api/layout");
+    REQUIRE(res);
+    CHECK(json::parse(res->body) == json{{"sidebarWidth", 240}, {"agentShare", 0.5}});
+
+    openPath(projectA);
+    res = http.Post("/api/layout", json{{"sidebarWidth", 320}, {"agentShare", 0.25}}.dump(), "application/json");
+    REQUIRE(res);
+    CHECK(res->status == 200);
+
+    boot();
+    auto again = client();
+    res = again.Get("/api/layout");
+    REQUIRE(res);
+    CHECK(json::parse(res->body) == json{{"sidebarWidth", 320}, {"agentShare", 0.25}});
+    // 배치를 저장해도 탭은 그대로다
+    CHECK(state()["tabs"].size() == 1);
+
+    // 탭을 바꿔 저장해도 배치는 그대로다
+    openPath(projectB);
+    boot();
+    auto third = client();
+    res = third.Get("/api/layout");
+    REQUIRE(res);
+    CHECK(json::parse(res->body)["sidebarWidth"] == 320);
+    CHECK(state()["tabs"].size() == 2);
+}
+
+TEST_CASE_FIXTURE(Fixture, "한계를 벗어난 배치는 한계 안으로 옮겨 기억하고, 수가 아닌 값은 받지 않는다 (AC3, AC12)") {
+    auto http = client();
+    auto res = http.Post("/api/layout", json{{"sidebarWidth", 3}, {"agentShare", 9}}.dump(), "application/json");
+    REQUIRE(res);
+    CHECK(json::parse(res->body) == json{{"sidebarWidth", 180}, {"agentShare", 0.95}});
+
+    for (const char* body : {R"({"sidebarWidth":"wide","agentShare":0.5})", R"({"sidebarWidth":300})", "[]", "not json"}) {
+        CAPTURE(body);
+        res = http.Post("/api/layout", body, "application/json");
+        REQUIRE(res);
+        CHECK(res->status == 400);
+    }
+    res = http.Get("/api/layout");
+    REQUIRE(res);
+    CHECK(json::parse(res->body)["sidebarWidth"] == 180);
+}
+
+TEST_CASE_FIXTURE(Fixture, "열쇠가 없으면 화면 배치를 읽거나 바꿀 수 없다") {
+    auto none = client(nullptr);
+    auto res = none.Get("/api/layout");
+    REQUIRE(res);
+    CHECK(res->status == 401);
+    res = none.Post("/api/layout", json{{"sidebarWidth", 500}, {"agentShare", 0.9}}.dump(), "application/json");
+    REQUIRE(res);
+    CHECK(res->status == 401);
+
+    auto http = client();
+    res = http.Get("/api/layout");
+    REQUIRE(res);
+    CHECK(json::parse(res->body)["sidebarWidth"] == 240);
+}

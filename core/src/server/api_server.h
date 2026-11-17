@@ -75,6 +75,7 @@ private:
     data::SettingsStore store_;
     std::mutex mutex_;
     domain::ProjectTabs tabs_;
+    domain::Layout layout_;
     // 이번 실행에서 터미널을 자동으로 띄워 준 탭
     std::set<std::string> autoStarted_;
     std::unique_ptr<httplib::Server> server_;
