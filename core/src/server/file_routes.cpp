@@ -19,6 +19,8 @@ constexpr const char* kJson = "application/json; charset=utf-8";
 constexpr std::chrono::seconds kLongestWait{20};
 // 지켜볼 폴더가 너무 많아 일부만 지켜볼 때 다시 읽는 간격
 constexpr std::chrono::seconds kRereadInterval{1};
+// 문서 창이 열어 둔 파일이 바뀌었는지 다시 확인하는 간격
+constexpr std::chrono::milliseconds kFileCheckInterval{500};
 
 void sendError(httplib::Response& res, const std::string& code) {
     int status = 409;
@@ -122,6 +124,44 @@ void ApiServer::registerFileRoutes() {
         json dirs = json::array();
         for (const auto& folder : *folders) dirs.push_back(listingJson(folder, files->list(folder)));
         res.set_content(json{{"dirs", std::move(dirs)}}.dump(), kJson);
+    });
+
+    // 문서 창: 글자 파일 하나의 내용을 읽는다. 화면이 알고 있는 것과 같으면 내용 없이 답한다.
+    // wait이면 화면이 알고 있는 것(내용의 stamp 또는 열 수 없는 이유 error)과 달라질 때까지 기다렸다가 답한다
+    server_->Post(R"(/api/tabs/([^/]+)/files/read)", [this](const Request& req, Response& res) {
+        const json body = parseBody(req);
+        const auto file = readPath(body, "path");
+        if (!file) return sendError(res, "invalid_path");
+        const auto textOf = [&body](const char* key) {
+            return body.contains(key) && body[key].is_string() ? body[key].get<std::string>() : std::string();
+        };
+        const std::string known = textOf("stamp");
+        const std::string knownError = textOf("error");
+        const bool waiting = body.contains("wait") && body["wait"].is_boolean() && body["wait"].get<bool>();
+
+        std::shared_ptr<data::ChangeWait> wait;
+        if (waiting) {
+            wait = std::make_shared<data::ChangeWait>();
+            std::lock_guard lock(waitMutex_);
+            // 지켜보는 문서는 하나다. 다른 문서를 지켜보기 시작하면 앞의 기다림은 끝낸다
+            if (currentFileWait_) currentFileWait_->cancel();
+            currentFileWait_ = wait;
+        }
+
+        const auto deadline = std::chrono::steady_clock::now() + kLongestWait;
+        data::FileText text;
+        for (;;) {
+            const auto files = projectFiles(req, res);
+            if (!files) return;
+            text = files->read(*file, known);
+            const bool same = text.error.empty() ? text.unchanged : text.error == knownError;
+            if (!wait || !same || wait->cancelled() || std::chrono::steady_clock::now() >= deadline) break;
+            wait->wait(kFileCheckInterval);
+        }
+        if (!text.error.empty()) return sendError(res, text.error);
+        json reply = {{"stamp", text.stamp}, {"unchanged", text.unchanged}};
+        if (!text.unchanged) reply["text"] = text.text;
+        res.set_content(reply.dump(), kJson);
     });
 
     // 화면이 알고 있는 내용과 달라진 폴더가 생길 때까지 기다렸다가 그 폴더들의 새 내용을 준다

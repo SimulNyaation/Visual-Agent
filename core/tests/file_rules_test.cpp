@@ -81,3 +81,17 @@ TEST_CASE("같은 이름이 있으면 사본 이름을 만든다 (AC32)") {
     CHECK(copyName(L"assets.v2", true, taken) == L"assets.v2 - 복사본");
     CHECK(copyName(L"Makefile", false, taken) == L"Makefile - 복사본");
 }
+
+TEST_CASE("문서 창: 올바른 UTF-8 글자만 글자 파일로 본다 (AC5, AC11)") {
+    using va::domain::isUtf8Text;
+    CHECK(isUtf8Text(""));
+    CHECK(isUtf8Text("plain ascii\r\n\ttab"));
+    CHECK(isUtf8Text("\xED\x95\x9C\xEA\xB8\x80"));      // 한글
+    CHECK(isUtf8Text("\xF0\x9F\x98\x80 ok"));             // 그림 글자
+    CHECK_FALSE(isUtf8Text(std::string("a\0b", 3)));         // 0 바이트 (그림, 실행 파일)
+    CHECK_FALSE(isUtf8Text("\xC7\xD1\xB1\xDB"));          // EUC-KR로 적은 한글
+    CHECK_FALSE(isUtf8Text("\xFF\xFE" "a"));                // UTF-16 표시
+    CHECK_FALSE(isUtf8Text("\xED\x95"));                    // 글자 중간에서 끊김
+    CHECK_FALSE(isUtf8Text("\xC0\xAF"));                    // 길게 적은 글자
+    CHECK_FALSE(isUtf8Text("\xED\xA0\x80"));               // 글자가 아닌 값
+}

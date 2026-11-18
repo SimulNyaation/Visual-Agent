@@ -263,6 +263,24 @@ p {
   justify-content: center;
 }
 
+/* 작업 영역은 터미널(왼쪽)과 문서 창(오른쪽)으로 나뉜다. 문서를 열지 않았으면 터미널이 전부 쓴다 */
+.worksplit {
+  align-self: stretch;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.worksplit__main {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* 터미널은 작업 영역을 가득 채운다 */
 .termview {
   align-self: stretch;
@@ -793,4 +811,313 @@ p {
   background: var(--rust);
   color: var(--bg-0);
   font-weight: 600;
+}
+
+/* ── 문서 창 ── */
+.docpane {
+  flex: 0 0 50%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+.doctabs {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  height: 30px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-0);
+}
+
+.doctabs__list {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.doctab {
+  flex: none;
+  display: flex;
+  align-items: center;
+  max-width: 200px;
+  border-right: 1px solid var(--line);
+  color: var(--text-2);
+}
+
+.doctab:hover {
+  background: var(--bg-3);
+}
+
+.doctab--selected,
+.doctab--selected:hover {
+  background: var(--bg-1);
+  color: var(--text-1);
+  box-shadow: inset 0 2px 0 var(--ochre);
+}
+
+.doctab__select {
+  min-width: 0;
+  height: 100%;
+  padding: 0 2px 0 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.doctab__close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+  border-radius: 4px;
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.doctab__close:hover {
+  background: var(--bg-2);
+  color: var(--text-1);
+}
+
+.doctabs__raw {
+  flex: none;
+  margin: 4px 8px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.doctabs__raw:hover {
+  color: var(--text-1);
+}
+
+.doctabs__raw--on {
+  border-color: var(--ochre);
+  color: var(--ochre);
+}
+
+.doc {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  user-select: text;
+}
+
+.doc__alert {
+  padding: 32px 24px;
+  color: var(--text-2);
+  text-align: center;
+}
+
+/* 글자 그대로: 줄 번호는 꾸밈으로 붙인다 */
+.doc__text {
+  min-width: max-content;
+  padding: 10px 0 24px;
+  counter-reset: line;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-1);
+}
+
+.doc__line {
+  padding-right: 16px;
+  white-space: pre;
+  counter-increment: line;
+}
+
+.doc__line::before {
+  content: counter(line);
+  display: inline-block;
+  width: 44px;
+  margin-right: 14px;
+  color: var(--text-3);
+  text-align: right;
+  user-select: none;
+}
+
+.doc__html {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--text-1);
+}
+
+/* 그려진 마크다운 */
+.doc__markdown {
+  max-width: 780px;
+  padding: 20px 28px 48px;
+  color: var(--text-1);
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: break-word;
+}
+
+.doc__markdown h1,
+.doc__markdown h2,
+.doc__markdown h3,
+.doc__markdown h4 {
+  margin: 1.5em 0 0.5em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.doc__markdown > :first-child {
+  margin-top: 0;
+}
+
+.doc__markdown h1 {
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--line-strong);
+  font-size: 1.7em;
+}
+
+.doc__markdown h2 {
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--line);
+  font-size: 1.35em;
+}
+
+.doc__markdown h3 {
+  font-size: 1.15em;
+}
+
+.doc__markdown p,
+.doc__markdown ul,
+.doc__markdown ol,
+.doc__markdown blockquote,
+.doc__markdown pre,
+.doc__markdown table {
+  margin: 0 0 1em;
+}
+
+.doc__markdown ul,
+.doc__markdown ol {
+  padding-left: 1.6em;
+}
+
+.doc__markdown ul {
+  list-style: disc;
+}
+
+.doc__markdown ol {
+  list-style: decimal;
+}
+
+.doc__markdown li > ul,
+.doc__markdown li > ol {
+  margin-bottom: 0;
+}
+
+.doc__markdown .doc__task {
+  list-style: none;
+  margin-left: -1.4em;
+}
+
+.doc__markdown .doc__task input {
+  margin-right: 4px;
+  accent-color: var(--ochre);
+}
+
+.doc__markdown a {
+  color: var(--ochre);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.doc__markdown strong {
+  font-weight: 600;
+}
+
+.doc__markdown em {
+  font-style: italic;
+}
+
+.doc__markdown code {
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  background: var(--bg-3);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.doc__markdown pre {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-0);
+  overflow-x: auto;
+}
+
+.doc__markdown pre code {
+  padding: 0;
+  background: none;
+  white-space: pre;
+}
+
+.doc__markdown blockquote {
+  padding: 2px 14px;
+  border-left: 3px solid var(--line-strong);
+  color: var(--text-2);
+}
+
+.doc__markdown blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.doc__markdown hr {
+  margin: 1.5em 0;
+  border: 0;
+  border-top: 1px solid var(--line-strong);
+}
+
+.doc__markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.doc__markdown th,
+.doc__markdown td {
+  padding: 5px 10px;
+  border: 1px solid var(--line-strong);
+  text-align: left;
+  vertical-align: top;
+}
+
+.doc__markdown th {
+  background: var(--bg-2);
+  font-weight: 600;
+}
+
+.doc__image {
+  color: var(--text-3);
+}
+
+.doc__diagram {
+  margin: 0 0 1em;
+  overflow-x: auto;
+}
+
+.doc__diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.doc__diagram-error {
+  margin-top: -0.6em;
+  color: var(--rust);
+  font-size: 12px;
 }

@@ -87,6 +87,7 @@ private:
     // 지금 폴더 변화를 기다리고 있는 요청. 새 요청이 오면 앞의 것은 끝낸다
     std::mutex waitMutex_;
     std::shared_ptr<data::ChangeWait> currentWait_;
+    std::shared_ptr<data::ChangeWait> currentFileWait_;  // 문서 창이 열어 둔 파일의 바뀜을 기다리는 요청
 
     data::Terminals terminals_;
     // 앱 닫기 확인을 화면에 요청한 횟수. 화면은 이 값이 커지면 확인 창을 띄운다

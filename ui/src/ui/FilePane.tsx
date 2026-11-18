@@ -40,6 +40,8 @@ interface Props {
   missing: boolean;
   tree: TreeState | null;
   actions: FilePaneActions;
+  /** 파일을 눌러 문서 창에 연다 */
+  onOpen?(path: string): void;
 }
 
 const ROW_HEIGHT = 26;
@@ -104,7 +106,7 @@ function KindIcon({ kind }: { kind: FileRow["kind"] }) {
   );
 }
 
-export function FilePane({ missing, tree, actions }: Props) {
+export function FilePane({ missing, tree, actions, onOpen }: Props) {
   const treeRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [height, setHeight] = useState(0);
@@ -248,7 +250,9 @@ export function FilePane({ missing, tree, actions }: Props) {
         onClick={(event) => {
           const ctrl = event.ctrlKey || event.metaKey;
           actions.select(row.path, { ctrl, shift: event.shiftKey });
-          if (row.kind === "folder" && !ctrl && !event.shiftKey) void actions.toggleFolder(row.path);
+          if (ctrl || event.shiftKey) return;
+          if (row.kind === "folder") void actions.toggleFolder(row.path);
+          else if (row.kind === "file") onOpen?.(row.path);
         }}
         onContextMenu={(event) => onContextMenu(event, row.path)}
         onDragStart={(event) => {

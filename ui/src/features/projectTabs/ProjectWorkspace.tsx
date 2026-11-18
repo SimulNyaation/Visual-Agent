@@ -1,14 +1,17 @@
 // 프로젝트 탭 상태를 화면 조각들에 연결한다.
 import { useSyncExternalStore } from "react";
+import { defaultDocumentShare } from "../../domain/documents";
 import { activeTab } from "../../domain/projectTabs";
 import { closeQuestionText } from "../../domain/terminals";
 import { AgentPane, AgentTools } from "../../ui/AgentPane";
+import { DocumentPane } from "../../ui/DocumentPane";
 import { FolderPickerScreen } from "../../ui/FolderPickerScreen";
 import { HierarchySidebar } from "../../ui/HierarchySidebar";
 import { Splitter } from "../../ui/Splitter";
 import { CloseConfirmDialog, TerminalArea } from "../../ui/TerminalArea";
 import { TitleBar } from "../../ui/TitleBar";
 import { WorkArea } from "../../ui/WorkArea";
+import type { DocumentSnapshot, DocumentStore } from "../documents/documentStore";
 import { FilePaneContainer } from "../fileTree/FilePaneContainer";
 import type { FileTreeStore } from "../fileTree/fileTreeStore";
 import type { LayoutStore } from "../layout/layoutStore";
@@ -20,6 +23,8 @@ interface Props {
   fileStore: FileTreeStore;
   terminalStore: TerminalStore;
   layoutStore: LayoutStore;
+  /** 문서 창. 주지 않으면 파일을 눌러도 열리지 않는다 */
+  documentStore?: DocumentStore;
   /** 제목 표시줄 오른쪽에 창 버튼이 차지하는 폭 */
   captionWidth: number;
 }
@@ -27,7 +32,18 @@ interface Props {
 /** 사이드바 경계의 한계를 정하는 앱 창의 너비 */
 const windowWidth = () => window.innerWidth;
 
-export function ProjectWorkspace({ store, fileStore, terminalStore, layoutStore, captionWidth }: Props) {
+const noDocuments: DocumentSnapshot = { documents: [], activePath: null, share: defaultDocumentShare };
+const neverChanges = () => () => undefined;
+const getNoDocuments = () => noDocuments;
+
+/** 문서 경계가 놓인 작업 영역(터미널과 문서 창을 함께 담은 자리)의 위치와 너비 */
+function splitBounds(boundary: HTMLElement) {
+  const rect = boundary.parentElement?.getBoundingClientRect();
+  return { left: rect?.left ?? 0, width: rect?.width ?? 0 };
+}
+
+export function ProjectWorkspace({ store, fileStore, terminalStore, layoutStore, documentStore, captionWidth }: Props) {
+  const documents = useSyncExternalStore(documentStore?.subscribe ?? neverChanges, documentStore?.getSnapshot ?? getNoDocuments);
   const { status, state } = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const terminals = useSyncExternalStore(terminalStore.subscribe, terminalStore.getSnapshot);
   const layout = useSyncExternalStore(layoutStore.subscribe, layoutStore.getSnapshot);
@@ -70,7 +86,7 @@ export function ProjectWorkspace({ store, fileStore, terminalStore, layoutStore,
               />
             }
           >
-            <FilePaneContainer store={fileStore} />
+            <FilePaneContainer store={fileStore} onOpen={documentStore?.open} />
           </HierarchySidebar>
           <Splitter
             orientation="vertical"
@@ -82,12 +98,38 @@ export function ProjectWorkspace({ store, fileStore, terminalStore, layoutStore,
             onReset={layoutStore.resetSidebar}
           />
           <WorkArea path={current.path} missing={current.missing}>
-            <TerminalArea
-              terminalId={terminals.activeId}
-              screen={terminals.screen}
-              error={terminals.error}
-              onNew={() => void terminalStore.open()}
-            />
+            <div className="worksplit">
+              <div className="worksplit__main">
+                <TerminalArea
+                  terminalId={terminals.activeId}
+                  screen={terminals.screen}
+                  error={terminals.error}
+                  onNew={() => void terminalStore.open()}
+                />
+              </div>
+              {documentStore && documents.documents.length > 0 && (
+                <>
+                  <Splitter
+                    orientation="vertical"
+                    label="문서 창 너비 조절"
+                    value={Math.round(documents.share * 100)}
+                    onDrag={(position, boundary) => documentStore.resize(position, splitBounds(boundary))}
+                    onDragEnd={() => undefined}
+                    onNudge={(direction, boundary) => documentStore.nudge(direction, splitBounds(boundary))}
+                    onReset={documentStore.resetShare}
+                  />
+                  <DocumentPane
+                    documents={documents.documents}
+                    activePath={documents.activePath}
+                    share={documents.share}
+                    onSelect={documentStore.select}
+                    onClose={documentStore.close}
+                    onToggleRaw={documentStore.toggleRaw}
+                    onOpen={documentStore.open}
+                  />
+                </>
+              )}
+            </div>
           </WorkArea>
         </main>
       ) : (

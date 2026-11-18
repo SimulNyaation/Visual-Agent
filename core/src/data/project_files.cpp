@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <fstream>
+#include <iterator>
+#include <string>
 #include <system_error>
 
 #include <windows.h>
@@ -146,6 +149,54 @@ Listing ProjectFiles::list(const fs::path& folder) const {
     }
     listing.stamp = stampOf(listing.entries);
     return listing;
+}
+
+FileText ProjectFiles::read(const fs::path& file, const std::string& knownStamp) const {
+    FileText result;
+    const auto located = file.empty() ? std::nullopt : locate(file, /*allowLinkAtEnd=*/false);
+    if (!located || !present(*located)) {
+        result.error = "not_found";
+        return result;
+    }
+    if (typeOf(*located) != fs::file_type::regular) {
+        result.error = "not_file";
+        return result;
+    }
+    std::error_code ec;
+    const auto size = fs::file_size(*located, ec);
+    const auto time = ec ? fs::file_time_type{} : fs::last_write_time(*located, ec);
+    if (ec) {
+        result.error = "not_found";
+        return result;
+    }
+    result.stamp = std::to_string(time.time_since_epoch().count()) + "-" + std::to_string(size);
+    if (size > kLargestTextFile) {
+        result.error = "too_large";
+        return result;
+    }
+    if (result.stamp == knownStamp) {
+        result.unchanged = true;
+        return result;
+    }
+
+    std::ifstream input(*located, std::ios::binary);
+    if (!input) {
+        result.error = "failed";
+        return result;
+    }
+    std::string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    if (bytes.size() > kLargestTextFile) {
+        result.error = "too_large";
+        return result;
+    }
+    if (!domain::isUtf8Text(bytes)) {
+        result.error = "not_text";
+        return result;
+    }
+    // 파일 맨 앞의 UTF-8 표시는 내용이 아니다
+    if (bytes.rfind("\xEF\xBB\xBF", 0) == 0) bytes.erase(0, 3);
+    result.text = std::move(bytes);
+    return result;
 }
 
 Outcome ProjectFiles::move(const std::vector<fs::path>& items, const fs::path& toFolder) {

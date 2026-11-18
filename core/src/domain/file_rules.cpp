@@ -139,3 +139,43 @@ const char* toText(FileOperationKind kind) {
 }
 
 }  // namespace va::domain
+
+namespace va::domain {
+
+bool isUtf8Text(const std::string& bytes) {
+    std::size_t index = 0;
+    while (index < bytes.size()) {
+        const auto lead = static_cast<unsigned char>(bytes[index]);
+        if (lead == 0) return false;
+        std::size_t extra = 0;
+        unsigned int code = 0;
+        if (lead < 0x80) {
+            ++index;
+            continue;
+        } else if (lead >= 0xC2 && lead <= 0xDF) {
+            extra = 1;
+            code = lead & 0x1Fu;
+        } else if (lead >= 0xE0 && lead <= 0xEF) {
+            extra = 2;
+            code = lead & 0x0Fu;
+        } else if (lead >= 0xF0 && lead <= 0xF4) {
+            extra = 3;
+            code = lead & 0x07u;
+        } else {
+            return false;
+        }
+        if (index + extra >= bytes.size()) return false;
+        for (std::size_t offset = 1; offset <= extra; ++offset) {
+            const auto next = static_cast<unsigned char>(bytes[index + offset]);
+            if ((next & 0xC0u) != 0x80u) return false;
+            code = (code << 6) | (next & 0x3Fu);
+        }
+        // 더 짧게 적을 수 있는 글자를 길게 적은 것, 글자가 아닌 값은 받지 않는다
+        if (extra == 2 && (code < 0x800 || (code >= 0xD800 && code <= 0xDFFF))) return false;
+        if (extra == 3 && (code < 0x10000 || code > 0x10FFFF)) return false;
+        index += extra + 1;
+    }
+    return true;
+}
+
+}  // namespace va::domain

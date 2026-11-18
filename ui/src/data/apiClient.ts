@@ -8,6 +8,7 @@ import {
   type FolderListing,
   type UndoneOperation,
 } from "../domain/fileTree";
+import { parseFileRead, type KnownFile } from "../domain/documents";
 import { parseLayout, type Layout } from "../domain/layout";
 import { parseProjectTabsState, type ProjectTabsState } from "../domain/projectTabs";
 import {
@@ -37,6 +38,16 @@ export type CloseTerminalResult = { ok: true } | Refused;
 export type ListResult = { ok: true; dirs: FolderListing[] } | Refused;
 export type FileResult = { ok: true; changes: FileChange[] } | Refused;
 export type UndoResult = { ok: true; undone: UndoneOperation } | Refused;
+
+export type ReadFileResult = { ok: true; stamp: string; text: string | null } | Refused;
+
+export interface DocumentsApi {
+  /**
+   * 파일이 화면이 알고 있는 것(known)과 달라질 때까지 기다렸다가 새 내용이나 열 수 없는 이유를 준다.
+   * 아는 것이 없으면 바로 읽어 준다. 돌아온 text는 null이 아니다
+   */
+  waitForFileChange(tabId: string, path: string, known: KnownFile, signal: AbortSignal): Promise<ReadFileResult>;
+}
 
 export interface KnownFolder {
   path: string;
@@ -74,7 +85,7 @@ export interface LayoutApi {
   saveLayout(layout: Layout): Promise<Layout>;
 }
 
-export type CoreApi = ProjectTabsApi & FilesApi & TerminalsApi & LayoutApi;
+export type CoreApi = ProjectTabsApi & FilesApi & TerminalsApi & LayoutApi & DocumentsApi;
 
 const paths = {
   state: "/api/state",
@@ -149,6 +160,10 @@ export function createApiClient(token: string): CoreApi {
     const changes = parseChanges(value);
     return changes && { ok: true, changes };
   };
+  const asRead = (value: unknown): ReadFileResult | undefined => {
+    const read = parseFileRead(value);
+    return read && { ok: true, ...read };
+  };
   const asUndone = (value: unknown): UndoResult | undefined => {
     const undone = parseUndone(value);
     return undone && { ok: true, undone };
@@ -176,6 +191,15 @@ export function createApiClient(token: string): CoreApi {
     create: (tabId, parent, name, kind) => files(tabId, "create", { parent, name, kind }, asChanges),
     trash: (tabId, items) => files(tabId, "trash", { items }, asChanges),
     undo: (tabId) => files(tabId, "undo", {}, asUndone),
+
+    waitForFileChange: async (tabId, path, known, signal) => {
+      for (;;) {
+        // 코어가 달라질 때까지 붙잡고 있다가 답한다. 한동안 그대로이면 같다고 답하므로 다시 묻는다
+        const result = await files(tabId, "read", { path, stamp: known.stamp, error: known.error, wait: true }, asRead, signal);
+        const same = result.ok ? result.text === null : result.error === known.error;
+        if (!same) return result;
+      }
+    },
 
     fetchLayout: () => expect("GET", paths.layout, undefined, parseLayout),
     saveLayout: (layout) => expect("POST", paths.layout, layout, parseLayout),

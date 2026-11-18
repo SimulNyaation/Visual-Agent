@@ -5,9 +5,11 @@ import type { FileTreeStore } from "./fileTreeStore";
 
 interface Props {
   store: FileTreeStore;
+  /** 파일을 눌러 문서 창에 연다 */
+  onOpen?(path: string): void;
 }
 
-export function FilePaneContainer({ store }: Props) {
+export function FilePaneContainer({ store, onOpen }: Props) {
   const { missing, tree } = useSyncExternalStore(store.subscribe, store.getSnapshot);
-  return <FilePane missing={missing} tree={tree} actions={store} />;
+  return <FilePane missing={missing} tree={tree} actions={store} onOpen={onOpen} />;
 }

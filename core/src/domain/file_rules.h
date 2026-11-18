@@ -56,4 +56,7 @@ struct FileOperation {
 
 const char* toText(FileOperationKind kind);
 
+// 문서 창에 글자로 보여 줄 수 있는 내용인지: 올바른 UTF-8이고 0 바이트가 없다
+bool isUtf8Text(const std::string& bytes);
+
 }  // namespace va::domain

@@ -303,3 +303,90 @@ TEST_CASE_FIXTURE(FilesFixture, "실패한 작업은 이유를 코드로 알린�
     // 실패한 작업은 기록에 남지 않는다
     CHECK(post(alphaId, "undo", json::object()).body["error"] == "nothing_to_undo");
 }
+
+TEST_CASE_FIXTURE(FilesFixture, "문서 창: 파일 내용을 읽어 주고, 바뀌면 새 내용을 준다 (AC1, AC7, AC12)") {
+    const auto first = post(alphaId, "read", {{"path", "docs/guide.md"}});
+    REQUIRE(first.status == 200);
+    CHECK(first.body["text"] == "guide");
+    CHECK(first.body["unchanged"] == false);
+    const std::string stamp = first.body["stamp"];
+
+    const auto same = post(alphaId, "read", {{"path", "docs/guide.md"}, {"stamp", stamp}});
+    CHECK(same.body["unchanged"] == true);
+    CHECK_FALSE(same.body.contains("text"));
+
+    write(alpha / "docs" / "guide.md", "guide, rewritten by an agent");
+    const auto changed = post(alphaId, "read", {{"path", "docs/guide.md"}, {"stamp", stamp}});
+    CHECK(changed.body["text"] == "guide, rewritten by an agent");
+
+    fs::remove(alpha / "docs" / "guide.md");
+    const auto gone = post(alphaId, "read", {{"path", "docs/guide.md"}, {"stamp", stamp}});
+    CHECK(gone.status == 404);
+    CHECK(gone.body["error"] == "not_found");
+}
+
+TEST_CASE_FIXTURE(FilesFixture, "문서 창: 프로젝트 폴더 밖의 파일과 열쇠 없는 요청은 읽지 못한다 (AC15)") {
+    CHECK(post(alphaId, "read", {{"path", "../outside/secret.txt"}}).body["error"] == "invalid_path");
+    CHECK(post(alphaId, "read", {{"path", "..\\beta\\b.txt"}}).body["error"] == "invalid_path");
+    CHECK(post(alphaId, "read", json::object()).body["error"] == "invalid_path");
+    CHECK(post(alphaId, "read", {{"path", "src"}}).body["error"] == "not_file");
+    CHECK(post("nope", "read", {{"path", "readme.md"}}).body["error"] == "tab_not_found");
+
+    httplib::Client http("127.0.0.1", server->port());
+    const auto res = http.Post(("/api/tabs/" + alphaId + "/files/read").c_str(),
+                               json{{"path", "readme.md"}}.dump(), "application/json");
+    REQUIRE(res);
+    CHECK(res->status == 401);
+    CHECK(res->body.find("readme") == std::string::npos);
+}
+
+TEST_CASE_FIXTURE(FilesFixture, "문서 창: 열어 둔 파일이 바뀔 때까지 기다렸다가 2초 안에 새 내용을 준다 (AC7, AC12)") {
+    const std::string stamp = post(alphaId, "read", {{"path", "notes.txt"}}).body["stamp"];
+
+    auto pending = std::async(std::launch::async, [&] {
+        return post(alphaId, "read", {{"path", "notes.txt"}, {"stamp", stamp}, {"wait", true}});
+    });
+    CHECK(pending.wait_for(700ms) == std::future_status::timeout);  // 바뀌기 전에는 답하지 않는다
+
+    const auto wroteAt = std::chrono::steady_clock::now();
+    write(alpha / "notes.txt", "notes, edited by an agent");
+    REQUIRE(pending.wait_for(2s) == std::future_status::ready);
+    const auto changed = pending.get();
+    CHECK(std::chrono::steady_clock::now() - wroteAt < 2s);
+    CHECK(changed.body["text"] == "notes, edited by an agent");
+
+    // 지워지면 이유를 알리고, 그 이유를 알고 있는 동안에는 다시 생길 때까지 기다린다
+    auto removal = std::async(std::launch::async, [&] {
+        return post(alphaId, "read", {{"path", "notes.txt"}, {"stamp", changed.body["stamp"]}, {"wait", true}});
+    });
+    fs::remove(alpha / "notes.txt");
+    REQUIRE(removal.wait_for(2s) == std::future_status::ready);
+    CHECK(removal.get().body["error"] == "not_found");
+
+    auto revival = std::async(std::launch::async, [&] {
+        return post(alphaId, "read", {{"path", "notes.txt"}, {"error", "not_found"}, {"wait", true}});
+    });
+    CHECK(revival.wait_for(700ms) == std::future_status::timeout);
+    write(alpha / "notes.txt", "back again");
+    REQUIRE(revival.wait_for(2s) == std::future_status::ready);
+    CHECK(revival.get().body["text"] == "back again");
+}
+
+TEST_CASE_FIXTURE(FilesFixture, "문서 창: 다른 파일을 지켜보기 시작하면 앞의 기다림은 바로 끝난다") {
+    const std::string stamp = post(alphaId, "read", {{"path", "notes.txt"}}).body["stamp"];
+    const std::string other = post(alphaId, "read", {{"path", "readme.md"}}).body["stamp"];
+
+    auto first = std::async(std::launch::async, [&] {
+        return post(alphaId, "read", {{"path", "notes.txt"}, {"stamp", stamp}, {"wait", true}});
+    });
+    CHECK(first.wait_for(300ms) == std::future_status::timeout);
+    auto second = std::async(std::launch::async, [&] {
+        return post(alphaId, "read", {{"path", "readme.md"}, {"stamp", other}, {"wait", true}});
+    });
+    REQUIRE(first.wait_for(2s) == std::future_status::ready);
+    CHECK(first.get().body["unchanged"] == true);
+
+    write(alpha / "readme.md", "readme v2 with more text");
+    REQUIRE(second.wait_for(2s) == std::future_status::ready);
+    CHECK(second.get().body["text"] == "readme v2 with more text");
+}

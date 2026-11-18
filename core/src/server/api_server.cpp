@@ -55,6 +55,7 @@ void ApiServer::stop() {
     {
         std::lock_guard lock(waitMutex_);
         if (currentWait_) currentWait_->cancel();
+        if (currentFileWait_) currentFileWait_->cancel();
     }
     // 터미널을 먼저 닫아야 터미널 소식을 기다리던 요청이 끝나고 서버가 멈출 수 있다
     terminals_.shutdown();

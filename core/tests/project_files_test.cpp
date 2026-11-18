@@ -322,3 +322,49 @@ TEST_CASE("recycle-bin-real: 지운 파일은 Windows 휴지통으로 가고, �
         CHECK(fs::exists(busy));
     }
 }
+
+TEST_CASE("문서 창: 글자 파일의 내용을 읽고, 바뀌지 않았으면 내용 없이 알린다 (AC1, AC7)") {
+    va::test::TempDir dir;
+    write(dir.path() / "docs" / "plan.md", "# \xEA\xB3\x84\xED\x9A\x8D\n");
+    write(dir.path() / "bom.txt", "\xEF\xBB\xBFhello");
+    ProjectFiles files(dir.path(), va::data::folderTrash(dir.path() / ".trash"));
+
+    const auto first = files.read("docs/plan.md", "");
+    CHECK(first.error.empty());
+    CHECK(first.text == "# \xEA\xB3\x84\xED\x9A\x8D\n");
+    CHECK_FALSE(first.stamp.empty());
+    CHECK(files.read("bom.txt", "").text == "hello");
+
+    const auto same = files.read("docs/plan.md", first.stamp);
+    CHECK(same.unchanged);
+    CHECK(same.text.empty());
+
+    write(dir.path() / "docs" / "plan.md", "# changed and longer\n");
+    const auto changed = files.read("docs/plan.md", first.stamp);
+    CHECK_FALSE(changed.unchanged);
+    CHECK(changed.text == "# changed and longer\n");
+    CHECK(changed.stamp != first.stamp);
+}
+
+TEST_CASE("문서 창: 열 수 없는 파일은 이유를 알린다 (AC11, AC15)") {
+    va::test::TempDir dir;
+    const Path root = dir.path() / "project";
+    write(root / "image.png", std::string("\x89PNG\r\n\x1a\n\0\0\0", 11));
+    write(root / "big.log", std::string(va::data::kLargestTextFile + 1, 'x'));
+    write(root / "edge.log", std::string(va::data::kLargestTextFile, 'x'));
+    write(root / "sub" / "a.txt", "a");
+    write(dir.path() / "outside.txt", "secret");
+    ProjectFiles files(root, va::data::folderTrash(dir.path() / ".trash"));
+
+    CHECK(files.read("image.png", "").error == "not_text");
+    CHECK(files.read("big.log", "").error == "too_large");
+    CHECK(files.read("edge.log", "").error.empty());
+    CHECK(files.read("ghost.txt", "").error == "not_found");
+    CHECK(files.read("sub", "").error == "not_file");
+    CHECK(files.read("", "").error == "not_found");
+
+    // 프로젝트 폴더 밖으로 이어지는 연결 폴더를 거쳐서는 읽지 못한다
+    std::error_code ec;
+    fs::create_directory_symlink(dir.path(), root / "link", ec);
+    if (!ec) CHECK(files.read("link/outside.txt", "").error == "not_found");
+}

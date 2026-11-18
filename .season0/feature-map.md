@@ -35,9 +35,13 @@ UI와 기능의 **정식 명칭** 사전입니다. Human과 AI가 동일한 명�
 | 우클릭 메뉴 | 파일 칸 | 새 파일, 새 폴더, 잘라내기, 복사, 붙여넣기, 이름 바꾸기, 지우기. 빈 곳에서는 새 파일, 새 폴더, 붙여넣기만 | `ui/src/ui/FileContextMenu.tsx` |
 | 지우기 확인 창 | 앱 창 | 지우기 전에 "…을 휴지통으로 보냅니다"를 묻는다 | `ui/src/ui/FilePane.tsx` |
 | 파일 칸 알림 | 파일 칸 | 파일 칸 아래의 한 줄. 실패 이유, 되돌린 내용, "복사하는 중"을 표시한다 | `ui/src/ui/FilePane.tsx` |
-| 작업 영역 | 앱 창 | 터미널이 뜨는 자리. 문서 창과 코드 편집기도 여기에 뜰 예정 | `ui/src/ui/WorkArea.tsx` |
+| 작업 영역 | 앱 창 | 왼쪽에 터미널, 오른쪽에 문서 창이 나란히 놓인다. 문서를 열지 않았으면 터미널이 전부 쓴다. 코드 편집기도 여기에 뜰 예정 | `ui/src/ui/WorkArea.tsx`, `ui/src/features/projectTabs/ProjectWorkspace.tsx` |
 | 터미널 | 작업 영역 | 셸에 명령을 넣고 결과를 보는 화면. 한 번에 하나만 보인다. 터미널이 없으면 "터미널이 없습니다"와 새 터미널 버튼 | `ui/src/ui/TerminalArea.tsx`, 글자 화면: `ui/src/ui/xtermScreen.ts` |
 | 닫기 확인 창 | 앱 창 | 실행 중인 프로그램이 있는 터미널·프로젝트 탭·앱을 닫기 전에 "실행 중인 프로그램이 있습니다. 닫으면 종료됩니다"를 묻는다 | `ui/src/ui/TerminalArea.tsx` |
+| 문서 창 | 작업 영역의 오른쪽 | 파일 칸에서 누른 파일의 내용을 읽기 전용으로 보여 준다. 마크다운·머메이드·HTML은 그려서, 그 밖의 글자 파일은 줄 번호와 함께 그대로. 파일이 바뀌면 따라 바뀐다. 열 수 없으면 이유를 보여 준다 | `ui/src/ui/DocumentPane.tsx`, 그리기: `ui/src/ui/markdownView.ts`, 상태: `ui/src/features/documents/documentStore.ts`, 규칙: `ui/src/domain/documents.ts` |
+| 문서 탭 | 문서 창 위 | 열어 둔 문서마다 하나. 파일 이름이 적힌다. 누르면 그 문서가 보이고 ×로 닫는다. 마지막 문서를 닫으면 문서 창이 사라진다. 프로젝트 탭마다 따로다 | `ui/src/ui/DocumentPane.tsx` |
+| 원문 버튼 | 문서 탭 줄의 오른쪽 | 마크다운·HTML 문서에서 그려진 모습과 파일에 적힌 글자 그대로를 오간다 | `ui/src/ui/DocumentPane.tsx` |
+| 문서 경계 | 터미널과 문서 창 사이 | 좌우로 끌면 둘의 너비가 나뉜다 (각각 240px 이상). 더블클릭하면 반반으로 돌아간다. 앱을 다시 켜면 반반이다 | `ui/src/ui/Splitter.tsx`, `ui/src/domain/documents.ts` |
 | 없어진 폴더 안내 | 작업 영역 | 탭의 폴더를 찾을 수 없을 때 표시 | `ui/src/ui/WorkArea.tsx` |
 | 폴더 선택 버튼 | 프로젝트 폴더 선택 화면 | 폴더 선택 창을 띄운다 | `ui/src/ui/FolderPickerScreen.tsx` |
 

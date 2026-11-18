@@ -1,6 +1,6 @@
 // 코어를 흉내 내는 가짜. 화면 테스트에서 실제 코어 대신 쓴다.
 // 실제 파일 규칙(덮어쓰지 않기, 프로젝트 폴더 밖 차단 등)은 코어 테스트와 앱 창 테스트가 확인한다.
-import type { CoreApi, FileResult, ListResult } from "../data/apiClient";
+import type { CoreApi, FileResult, ListResult, ReadFileResult } from "../data/apiClient";
 import { isSameOrInside, joinPath, nameOf, parentOf, type FileChange, type FolderListing } from "../domain/fileTree";
 import { defaultLayout, type Layout } from "../domain/layout";
 import type { ProjectTabsState } from "../domain/projectTabs";
@@ -62,6 +62,10 @@ export interface FakeCore {
   paths(folderPath: string): string[];
   /** 앱 밖에서 파일이 바뀐 것처럼 만든다 */
   external(folderPath: string, change: (files: Map<string, Kind>) => void): void;
+  /** 파일에 내용을 쓴다 (에이전트나 다른 프로그램이 저장한 것처럼). 없던 파일이면 만든다 */
+  writeFile(folderPath: string, path: string, text: string): void;
+  /** 파일을 이 이유로 열 수 없게 만든다 ("not_text", "too_large" 등) */
+  breakFile(folderPath: string, path: string, code: string): void;
   /** 다음 파일 작업 하나를 이 이유로 실패시킨다 */
   failNext(code: string): void;
   /** 복사를 끝내지 않고 붙잡아 둔다. 돌려받은 함수를 부르면 끝난다 */
@@ -141,6 +145,23 @@ export function fakeCore(options: FakeCoreOptions): FakeCore {
   function filesOf(tabId: string): Map<string, Kind> | undefined {
     const tab = state.tabs.find((candidate) => candidate.id === tabId);
     return tab && !tab.missing ? projectOf(tab.path) : undefined;
+  }
+
+  /** 파일의 내용. 적어 준 적이 없는 파일은 빈 파일이다 */
+  const contents = new Map<string, { text: string; stamp: number } | { error: string }>();
+  let lastStamp = 0;
+  const contentKey = (folderPath: string, path: string) => `${folderPath}\n${path}`;
+
+  function readFile(tabId: string, path: string): ReadFileResult {
+    const tab = state.tabs.find((candidate) => candidate.id === tabId);
+    const files = filesOf(tabId);
+    if (!tab || !files) return { ok: false, error: "folder_not_found" };
+    const kind = files.get(path);
+    if (kind === undefined) return { ok: false, error: "not_found" };
+    if (kind !== "file") return { ok: false, error: "not_file" };
+    const content = contents.get(contentKey(tab.path, path)) ?? { text: "", stamp: 0 };
+    if ("error" in content) return { ok: false, error: content.error };
+    return { ok: true, stamp: String(content.stamp), text: content.text };
   }
 
   function listing(files: Map<string, Kind>, folder: string): FolderListing {
@@ -298,6 +319,18 @@ export function fakeCore(options: FakeCoreOptions): FakeCore {
       return { ok: true, dirs: dirs.map((folder) => listing(files, folder)) };
     },
 
+    waitForFileChange: async (tabId, path, known, signal): Promise<ReadFileResult> => {
+      for (;;) {
+        const result = readFile(tabId, path);
+        const same = result.ok ? result.stamp === known.stamp : result.error === known.error;
+        if (!same) return result;
+        await new Promise<void>((resolve, reject) => {
+          waiters.add(resolve);
+          signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
+        });
+      }
+    },
+
     waitForChanges: async (tabId, known, signal): Promise<ListResult> => {
       for (;;) {
         const files = filesOf(tabId);
@@ -389,6 +422,16 @@ export function fakeCore(options: FakeCoreOptions): FakeCore {
     },
     external(folderPath, change) {
       change(projectOf(folderPath));
+      wake();
+    },
+    writeFile(folderPath, path, text) {
+      projectOf(folderPath).set(path, "file");
+      contents.set(contentKey(folderPath, path), { text, stamp: ++lastStamp });
+      wake();
+    },
+    breakFile(folderPath, path, code) {
+      projectOf(folderPath).set(path, "file");
+      contents.set(contentKey(folderPath, path), { error: code });
       wake();
     },
     failNext(code) {

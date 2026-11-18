@@ -2,6 +2,7 @@
 // 프로젝트 폴더 밖은 건드리지 않고, 이미 있는 파일을 덮어쓰지 않는다.
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -34,11 +35,24 @@ struct Outcome {
     std::vector<domain::FileChange> changes;
 };
 
+// 파일 하나의 글자 내용. error가 비어 있으면 성공이다
+struct FileText {
+    std::string error;       // "not_found", "not_file", "too_large", "not_text", "failed"
+    bool unchanged = false;  // 알고 있던 것과 같아 text를 채우지 않았음
+    std::string stamp;       // 파일이 같으면 같은 값
+    std::string text;        // UTF-8
+};
+
+// 문서 창이 여는 가장 큰 파일
+constexpr std::uintmax_t kLargestTextFile = 1024 * 1024;
+
 class ProjectFiles {
 public:
     ProjectFiles(std::filesystem::path root, TrashFn trash);
 
     Listing list(const std::filesystem::path& folder) const;
+    // 글자 파일의 내용을 읽는다. knownStamp와 같으면 내용 없이 unchanged로 돌려준다
+    FileText read(const std::filesystem::path& file, const std::string& knownStamp) const;
 
     // 모두 옮기거나 하나도 옮기지 않는다
     Outcome move(const std::vector<std::filesystem::path>& items, const std::filesystem::path& toFolder);
