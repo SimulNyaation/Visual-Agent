@@ -58,9 +58,14 @@ std::string base64(const std::string& bytes) {
 }
 
 json terminalJson(const data::TerminalView& view) {
+    json subAgents = json::array();
+    for (const auto& sub : view.subAgents) {
+        subAgents.push_back({{"id", sub.id}, {"type", sub.type}, {"description", sub.description}});
+    }
     return {{"id", view.id},       {"tabId", view.tabId}, {"shell", view.shell},
             {"name", view.name},   {"agent", view.agent}, {"busy", view.busy},
-            {"working", view.working}, {"finished", view.finished}};
+            {"working", view.working}, {"finished", view.finished},
+            {"asking", view.asking},   {"subAgents", std::move(subAgents)}};
 }
 
 std::chrono::steady_clock::rep nowTicks() {
@@ -177,6 +182,17 @@ void ApiServer::registerTerminalRoutes() {
                              {"quitRequests", quitRequests_.load()}}
                             .dump(),
                         kJson);
+    });
+
+    // 터미널 안의 에이전트(Claude Code)가 훅으로 보내는 소식. 본문은 훅이 넘겨준 JSON 그대로다.
+    // 어느 터미널인지는 앱이 그 터미널에 환경 변수로 알려 준 번호로 안다
+    server_->Post("/api/hooks/claude", [this](const httplib::Request& req, httplib::Response& res) {
+        const auto payload = json::parse(req.body, nullptr, /*allow_exceptions=*/false);
+        if (!payload.is_object()) return sendError(res, 400, "invalid_body");
+        if (!terminals_.noteHook(req.get_header_value("X-VA-Terminal"), domain::parseHookEvent(payload))) {
+            return sendError(res, 404, "terminal_not_found");
+        }
+        res.set_content("{}", kJson);
     });
 
     // 앱 닫기 확인 창의 답. confirm이 true면 앱을 닫는다

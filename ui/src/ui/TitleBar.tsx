@@ -8,6 +8,8 @@ interface Props {
   captionWidth: number;
   /** 확인하지 않은 "끝남"이 있는 프로젝트 탭들 */
   attention?: string[];
+  /** 보고 있지 않은 터미널의 에이전트가 허락을 기다리고 있는 프로젝트 탭들 */
+  asking?: string[];
   onSelect(id: string): void;
   onClose(id: string): void;
   onAdd(): void;
@@ -21,14 +23,16 @@ function revealTab(element: HTMLDivElement | null) {
   element?.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
-export function TitleBar({ tabs, activeId, captionWidth, attention = [], onSelect, onClose, onAdd }: Props) {
+export function TitleBar({ tabs, activeId, captionWidth, attention = [], asking = [], onSelect, onClose, onAdd }: Props) {
   const style = { "--caption-width": `${captionWidth}px` } as CSSProperties;
   return (
     <header className="titlebar" style={style}>
       <div className="tabstrip" role="tablist" aria-label="프로젝트" onWheel={scrollSideways}>
         {tabs.map((tab) => {
           const selected = tab.id === activeId;
+          const waitsForMe = asking.includes(tab.id);
           const finished = attention.includes(tab.id);
+          const note = waitsForMe ? "허락을 기다리는 에이전트가 있습니다" : finished ? "작업을 마친 에이전트가 있습니다" : undefined;
           return (
             <div
               key={tab.id}
@@ -41,10 +45,10 @@ export function TitleBar({ tabs, activeId, captionWidth, attention = [], onSelec
                 aria-selected={selected}
                 className="tab__select"
                 title={tab.path}
-                aria-description={finished ? "작업을 마친 에이전트가 있습니다" : undefined}
+                aria-description={note}
                 onClick={() => onSelect(tab.id)}
               >
-                {finished && <span className="tab__attention" aria-hidden="true" />}
+                {note && <span className="tab__attention" aria-hidden="true" />}
                 {tab.missing && <span className="tab__missing" aria-hidden="true" />}
                 <span className="tab__label">{tab.label}</span>
               </button>

@@ -11,6 +11,8 @@ namespace {
 
 constexpr const char* kJson = "application/json; charset=utf-8";
 constexpr const char* kTokenHeader = "X-VA-Token";
+constexpr const char* kHookTokenHeader = "X-VA-Hook-Token";
+constexpr const char* kHookPath = "/api/hooks/claude";
 
 void sendError(httplib::Response& res, int status, const char* code) {
     res.status = status;
@@ -37,7 +39,8 @@ ApiServer::ApiServer(ApiServerOptions options, data::SettingsStore store)
       tabs_(store_.load()),
       layout_(store_.loadLayout()),
       server_(std::make_unique<httplib::Server>()),
-      terminals_(options_.shells) {}
+      terminals_(options_.shells),
+      hookToken_(generateToken()) {}
 
 ApiServer::~ApiServer() { stop(); }
 
@@ -46,6 +49,7 @@ bool ApiServer::start() {
     if (!server_->set_mount_point("/", options_.uiDirectory.string())) return false;
     port_ = server_->bind_to_any_port("127.0.0.1");
     if (port_ <= 0) return false;
+    terminals_.setHookEndpoint(port_, hookToken_);
     thread_ = std::thread([this] { server_->listen_after_bind(); });
     server_->wait_until_ready();
     return true;
@@ -86,6 +90,14 @@ void ApiServer::registerRoutes() {
         if (host != expected) {
             sendError(res, 403, "forbidden_host");
             return httplib::Server::HandlerResponse::Handled;
+        }
+        // 터미널 안의 에이전트가 보내는 훅 소식은 그 터미널들만 아는 값으로 확인한다
+        if (req.path == kHookPath) {
+            if (req.get_header_value(kHookTokenHeader) != hookToken_) {
+                sendError(res, 401, "invalid_token");
+                return httplib::Server::HandlerResponse::Handled;
+            }
+            return httplib::Server::HandlerResponse::Unhandled;
         }
         if (req.get_header_value(kTokenHeader) != options_.token) {
             sendError(res, 401, "invalid_token");

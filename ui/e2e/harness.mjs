@@ -12,6 +12,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const exePath = join(repoRoot, "build", "dist", "Visual-Agent", "Visual-Agent.exe");
 /** 에이전트 대신 실행하는 시험용 프로그램. 화면 전체를 쓰고, 받은 키를 파일에 적는다 */
 const fakeAgentPath = join(repoRoot, "build", "core", "va_fake_agent.exe");
+const hookProgramPath = join(repoRoot, "build", "core", "va-hook.exe");
 const probeScript = join(repoRoot, "scripts", "window-probe.ps1");
 const captureScript = join(repoRoot, "scripts", "capture-window.ps1");
 const mouseScript = join(repoRoot, "scripts", "mouse-probe.ps1");
@@ -115,6 +116,11 @@ export function createSandbox() {
     fakeAgent(folder, name) {
       if (!existsSync(fakeAgentPath)) throw new Error(`${fakeAgentPath} 가 없습니다. 먼저 "npm run build"로 앱을 빌드하세요.`);
       copyFileSync(fakeAgentPath, join(folder, name));
+    },
+    /** Claude Code의 훅이 실행하는 프로그램(va-hook.exe)을 폴더에 넣어 둔다. 시험용 프로그램이 숫자 키를 받으면 이것을 실행한다 */
+    hookProgram(folder) {
+      if (!existsSync(hookProgramPath)) throw new Error(`${hookProgramPath} 가 없습니다. 먼저 "npm run build"로 앱을 빌드하세요.`);
+      copyFileSync(hookProgramPath, join(folder, "va-hook.exe"));
     },
     dispose() {
       // 앱이 끝난 뒤에도 화면 부품(WebView2)이 캐시 파일을 한동안 더 쓰는 경우가 있어(특히 앱을 띄우자마자 닫았을 때) 잠깐씩 쉬며 다시 해 본다.

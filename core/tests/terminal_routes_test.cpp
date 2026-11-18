@@ -377,3 +377,62 @@ TEST_CASE("서버를 멈추면 소식을 기다리던 요청이 끝나고 터미
     waiter.join();
     CHECK(std::chrono::steady_clock::now() - started < 8s);
 }
+
+TEST_CASE("훅 소식은 터미널에만 알려 준 값으로만 받는다. 화면의 값으로도, 훅의 값으로 다른 요청도 안 된다 (SPEC-20261118-sub-agents AC9)") {
+    TerminalRoutesFixture f;
+    const auto id = f.openTerminal(f.alphaId);
+    const std::string body = R"({"hook_event_name":"SubagentStart","agent_id":"a1","agent_type":"Explore"})";
+    const auto send = [&](const httplib::Headers& headers) {
+        httplib::Client http("127.0.0.1", f.server->port());
+        const auto res = http.Post("/api/hooks/claude", headers, body, "application/json");
+        REQUIRE(res);
+        return res->status;
+    };
+
+    CHECK(send({{"X-VA-Terminal", id}}) == 401);
+    CHECK(send({{"X-VA-Terminal", id}, {"X-VA-Hook-Token", "guess"}}) == 401);
+    // 화면이 쓰는 값은 훅 소식에 통하지 않는다
+    CHECK(send({{"X-VA-Terminal", id}, {"X-VA-Token", "secret-token"}}) == 401);
+    CHECK(send({{"X-VA-Terminal", id}, {"X-VA-Hook-Token", "secret-token"}}) == 401);
+    f.pump();
+    CHECK(f.terminals[0]["subAgents"].empty());
+}
+
+TEST_CASE("터미널에서 실행한 에이전트의 훅이 va-hook으로 보낸 소식이 그 터미널에 붙는다 (SPEC-20261118-sub-agents AC1, AC9)") {
+    TerminalRoutesFixture f;
+    fs::copy_file(VA_FAKE_AGENT_PATH, f.alpha / "claude.exe");
+    fs::copy_file(VA_HOOK_PATH, f.alpha / "va-hook.exe");
+    std::ofstream(f.alpha / "hook1.json") << R"({"hook_event_name":"PreToolUse","tool_name":"Agent","tool_input":{"subagent_type":"Explore","description":"로그인 코드 찾기"}})";
+    std::ofstream(f.alpha / "hook2.json") << R"({"hook_event_name":"SubagentStart","agent_id":"a1","agent_type":"Explore"})";
+    std::ofstream(f.alpha / "hook3.json") << R"({"hook_event_name":"SubagentStop","agent_id":"a1","agent_type":"Explore"})";
+
+    const auto id = f.openTerminal(f.alphaId);
+    REQUIRE(f.untilSeen(">"));
+    f.type(id, ".\\claude.exe\r");
+    const bool ready = f.untilSeen("FAKE AGENT READY");
+    INFO(f.seen);
+    REQUIRE(ready);
+    const auto other = f.openTerminal(f.alphaId);
+    const auto find = [&](const std::string& wanted) {
+        for (const auto& terminal : f.terminals) {
+            if (terminal["id"] == wanted) return terminal;
+        }
+        return json(json::object());
+    };
+    REQUIRE(f.until([&] { return find(id).value("agent", "") == "Claude Code"; }));
+
+    f.type(id, "1");
+    f.type(id, "2");
+    REQUIRE(f.until([&] { return find(id)["subAgents"].size() == 1; }));
+    const json sub = find(id)["subAgents"][0];
+    CHECK(sub["id"] == "a1");
+    CHECK(sub["type"] == "Explore");
+    CHECK(sub["description"] == "로그인 코드 찾기");
+    CHECK(find(id)["working"] == true);
+    // 다른 터미널에는 붙지 않는다
+    CHECK(find(other)["subAgents"].empty());
+
+    f.type(id, "3");
+    CHECK(f.until([&] { return find(id)["subAgents"].empty(); }));
+    f.type(id, "q");
+}

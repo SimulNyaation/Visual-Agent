@@ -83,19 +83,25 @@ bool continuesBurst(std::optional<Clock::time_point> lastActivity, Clock::time_p
 
 AgentActivity advanceActivity(AgentActivity current, bool agentRunning,
                               std::optional<Clock::time_point> burstStart,
-                              std::optional<Clock::time_point> lastActivity, Clock::time_point now) {
+                              std::optional<Clock::time_point> lastActivity, Clock::time_point now,
+                              bool reported) {
     // 에이전트가 끝나면 상태도 없다. 다시 실행하면 처음부터 센다
     if (!agentRunning) return {};
 
     const bool recent = burstStart && lastActivity && now - *lastActivity < kQuietMeansWaiting;
-    const bool active = recent && *lastActivity - *burstStart >= kSustainedOutput;
+    const bool drawing = recent && *lastActivity - *burstStart >= kSustainedOutput;
+    const bool active = drawing || reported;
     if (active && !current.working) {
         current.working = true;
-        current.startedAt = *burstStart;
+        current.startedAt = drawing ? *burstStart : now;
     } else if (!active && current.working) {
         current.working = false;
-        if (lastActivity && *lastActivity - current.startedAt >= kShortestRun) ++current.finished;
+        // 스스로 알려 준 작업은 알려 준 지금 끝난 것이고, 출력으로 짐작한 작업은 마지막 출력 때 끝난 것이다
+        const std::optional<Clock::time_point> endedAt =
+            current.reported ? std::optional<Clock::time_point>(now) : lastActivity;
+        if (endedAt && *endedAt - current.startedAt >= kShortestRun) ++current.finished;
     }
+    current.reported = current.working && reported;
     return current;
 }
 

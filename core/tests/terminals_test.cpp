@@ -390,3 +390,64 @@ TEST_CASE("에이전트 상태: 에이전트가 작업하는 동안 작업 중, 
     CHECK_FALSE(state().working);
     CHECK(state().finished == 0);
 }
+
+TEST_CASE("하위 에이전트: 에이전트가 훅으로 알려 준 하위 에이전트와 허락 대기가 터미널에 붙고, 에이전트가 끝나면 사라진다 (SPEC-20261118-sub-agents AC1, AC3, AC5, AC8)") {
+    using va::domain::HookEvent;
+    TerminalsFixture f;
+    va::test::TempDir dir;
+    fs::copy_file(VA_FAKE_AGENT_PATH, dir.path() / "claude.exe");
+    const auto id = f.openCmd();
+    const auto state = [&] { return f.terminals.list().at(0); };
+    const auto within = [&](std::chrono::milliseconds limit, const std::function<bool()>& check) {
+        const auto deadline = std::chrono::steady_clock::now() + limit;
+        while (!check() && std::chrono::steady_clock::now() < deadline) std::this_thread::sleep_for(50ms);
+        return check();
+    };
+    const auto event = [](const char* name) {
+        HookEvent result;
+        result.name = name;
+        return result;
+    };
+
+    CHECK_FALSE(f.terminals.noteHook("p999", event("UserPromptSubmit")));
+
+    // 에이전트가 돌고 있지 않으면 훅으로 받은 것도 보이지 않는다
+    HookEvent started = event("SubagentStart");
+    started.agentId = "a1";
+    started.agentType = "Explore";
+    REQUIRE(f.terminals.noteHook(id, started));
+    CHECK(state().subAgents.empty());
+
+    REQUIRE(f.terminals.write(id, "\"" + va::domain::toUtf8(dir.path() / "claude.exe") + "\"\r"));
+    REQUIRE(f.untilSeen("FAKE AGENT READY"));
+    REQUIRE(within(5s, [&] { return state().agent == "Claude Code"; }));
+
+    // 하위 에이전트가 있는 동안에는 화면이 조용해도 작업 중이다. 소식은 바로 반영된다
+    REQUIRE(state().subAgents.size() == 1);
+    CHECK(state().subAgents[0].type == "Explore");
+    CHECK(state().working);
+    std::this_thread::sleep_for(3500ms);
+    CHECK(state().working);
+
+    REQUIRE(f.terminals.noteHook(id, event("PermissionRequest")));
+    CHECK(state().asking);
+    // 사용자가 답하면 허락 대기가 풀린다
+    REQUIRE(f.terminals.write(id, "y"));
+    CHECK_FALSE(state().asking);
+
+    HookEvent stopped = event("SubagentStop");
+    stopped.agentId = "a1";
+    REQUIRE(f.terminals.noteHook(id, stopped));
+    REQUIRE(f.terminals.noteHook(id, event("Stop")));
+    CHECK(state().subAgents.empty());
+    CHECK_FALSE(state().working);
+    CHECK(state().finished == 1);
+
+    // 에이전트를 끝내면 훅으로 받은 것도 남지 않는다
+    REQUIRE(f.terminals.noteHook(id, started));
+    CHECK(state().subAgents.size() == 1);
+    REQUIRE(f.terminals.write(id, "q"));
+    REQUIRE(within(5s, [&] { return state().agent.empty(); }));
+    CHECK(state().subAgents.empty());
+    CHECK_FALSE(state().working);
+}

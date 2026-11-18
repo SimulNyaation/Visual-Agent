@@ -49,6 +49,8 @@ describe("에이전트 상태: 규칙", () => {
     busy: true,
     working: false,
     finished: 0,
+    asking: false,
+    subAgents: [],
     ...patch,
   });
 

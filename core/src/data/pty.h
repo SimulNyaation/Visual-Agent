@@ -6,6 +6,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace va::data {
@@ -16,6 +17,8 @@ public:
         std::filesystem::path program;
         std::wstring arguments;
         std::filesystem::path directory;  // 시작 위치
+        // 앱의 환경 변수에 더해 셸에 넘길 것 (이름, 값). 같은 이름이 있으면 이것으로 바꾼다
+        std::vector<std::pair<std::wstring, std::wstring>> environment;
         short columns = 120;
         short rows = 30;
     };

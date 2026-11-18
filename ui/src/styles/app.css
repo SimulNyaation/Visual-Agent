@@ -459,6 +459,7 @@ p {
 
 .agentrow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   min-height: 28px;
   padding: 0 6px 0 12px;
@@ -552,7 +553,8 @@ p {
   animation: agent-working 1.2s ease-in-out infinite;
 }
 
-.agentrow__dot--finished {
+.agentrow__dot--finished,
+.agentrow__dot--asking {
   border-color: var(--ochre);
   background: var(--ochre);
 }
@@ -581,9 +583,61 @@ p {
   color: var(--text-2);
 }
 
-.agentrow__status--finished {
+.agentrow__status--finished,
+.agentrow__status--asking {
   color: var(--ochre);
   font-weight: 600;
+}
+
+/* 하위 에이전트: 터미널 줄 아래에 들여 쓴 줄. 왼쪽의 세로선이 어느 에이전트의 것인지 잇는다 */
+.subagents {
+  flex: none;
+  width: 100%;
+  margin: 0 0 4px 3px;
+  padding: 0 0 0 12px;
+  border-left: 1px solid var(--line-strong);
+  list-style: none;
+}
+
+.subagent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.subagent__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ochre);
+  animation: agent-working 1.2s ease-in-out infinite;
+}
+
+.subagent__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent__kind {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subagent__dot {
+    animation: none;
+  }
 }
 
 /* 프로젝트 탭: 확인하지 않은 "끝남"이 있음 */

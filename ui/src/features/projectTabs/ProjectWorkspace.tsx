@@ -56,6 +56,7 @@ export function ProjectWorkspace({ store, fileStore, terminalStore, layoutStore,
         activeId={state.activeId}
         captionWidth={captionWidth}
         attention={terminals.attentionTabs}
+        asking={terminals.askingTabs}
         onSelect={(id) => void store.selectTab(id)}
         onClose={(id) => void terminalStore.closeTab(id)}
         onAdd={() => void store.addProject()}

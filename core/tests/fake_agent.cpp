@@ -3,8 +3,11 @@
 // 받은 키의 이름을 화면과 기록 파일에 적는다. q나 Ctrl+C를 받으면 끝난다.
 // 실제 에이전트처럼 터미널 제목도 알려 준다: 시작할 때 자기 이름, F2·F3을 받으면 대화의 주제, F4를 받으면 폴더 경로.
 // 실제 에이전트가 작업하는 모습도 흉내 낸다: w를 받으면 4초, e를 받으면 1초 동안 0.2초마다 진행 표시를 그린다.
+// 실제 Claude Code처럼 훅도 실행한다: 숫자 키 N을 받으면, 지금 폴더에 hookN.json이 있을 때
+// 그 내용을 넘겨 지금 폴더의 va-hook.exe를 실행한다.
 // 사용: va_fake_agent [기록 파일]
 #include <cstdio>
+#include <cstdlib>
 #include <atomic>
 #include <string>
 #include <thread>
@@ -69,6 +72,31 @@ void workLoop() {
     }
 }
 
+void runHook(char digit) {
+    const std::string file = std::string("hook") + digit + ".json";
+    // 셸을 거치지 않고 실행한다 (셸은 콘솔의 입력 방식을 바꿔 놓는다)
+    SECURITY_ATTRIBUTES inherit{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
+    const HANDLE input = CreateFileA(file.c_str(), GENERIC_READ, FILE_SHARE_READ, &inherit, OPEN_EXISTING, 0, nullptr);
+    if (input == INVALID_HANDLE_VALUE) return;
+    const HANDLE nowhere = CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_WRITE, &inherit, OPEN_EXISTING, 0, nullptr);
+
+    STARTUPINFOA startup{};
+    startup.cb = sizeof(startup);
+    startup.dwFlags = STARTF_USESTDHANDLES;
+    startup.hStdInput = input;
+    startup.hStdOutput = nowhere;
+    startup.hStdError = nowhere;
+    char command[] = "va-hook.exe claude";
+    PROCESS_INFORMATION info{};
+    if (CreateProcessA(".\\va-hook.exe", command, nullptr, nullptr, TRUE, 0, nullptr, nullptr, &startup, &info)) {
+        WaitForSingleObject(info.hProcess, 5000);
+        CloseHandle(info.hProcess);
+        CloseHandle(info.hThread);
+    }
+    CloseHandle(input);
+    CloseHandle(nowhere);
+}
+
 std::string keyName(const std::string& bytes) {
     if (bytes == "\x1b[A") return "UP";
     if (bytes == "\x1b[B") return "DOWN";
@@ -111,6 +139,12 @@ int main(int argc, char** argv) {
         if (name == "q" || name == "CTRL+C") break;
         if (name == "w") g_ticksLeft = 20;
         if (name == "e") g_ticksLeft = 5;
+        // 키 여러 개가 한꺼번에 읽힐 수 있다. 방향키 같은 것(ESC로 시작)에 든 숫자는 키가 아니다
+        if (name.find('\x1b') == std::string::npos) {
+            for (const char key : name) {
+                if (key >= '1' && key <= '9') runHook(key);
+            }
+        }
         draw(name);
     }
 

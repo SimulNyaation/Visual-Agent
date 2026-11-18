@@ -1,5 +1,6 @@
 // 에이전트 칸. 터미널마다 한 줄씩 보여 주고, 그 터미널에서 에이전트가 돌고 있으면 이름을 함께 보여 준다.
-import { agentStatusText, terminalLabel, type TerminalRow } from "../domain/terminals";
+// 에이전트가 하위 에이전트를 부리고 있으면 그 줄 아래에 들여 써서 한 줄씩 보여 준다.
+import { agentStatusText, subAgentKind, subAgentTitle, terminalLabel, type TerminalRow } from "../domain/terminals";
 
 interface PaneProps {
   terminals: TerminalRow[];
@@ -58,6 +59,17 @@ export function AgentPane({ terminals, activeId, onSelect, onClose }: PaneProps)
             >
               ×
             </button>
+            {terminal.agent !== "" && terminal.subAgents.length > 0 && (
+              <ul className="subagents" aria-label={`${terminal.name}의 하위 에이전트`}>
+                {terminal.subAgents.map((sub) => (
+                  <li key={sub.id} className="subagent" title={subAgentTitle(sub)}>
+                    <span className="subagent__dot" aria-hidden="true" />
+                    <span className="subagent__title">{subAgentTitle(sub)}</span>
+                    {subAgentKind(sub) && <span className="subagent__kind">{subAgentKind(sub)}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
           </li>
         );
       })}

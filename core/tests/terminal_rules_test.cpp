@@ -139,3 +139,37 @@ TEST_CASE("에이전트 상태: 입력 뒤 0.4초 안의 출력은 넣은 글자
     CHECK_FALSE(isEchoOutput(t0, t0 + 400ms));
     CHECK_FALSE(isEchoOutput(t0 + 1s, t0));
 }
+
+TEST_CASE("에이전트 상태: 에이전트가 스스로 작업 중이라고 알려 주면 화면이 조용해도 작업 중이다 (SPEC-20261118-sub-agents AC6)") {
+    using namespace va::domain;
+    using namespace std::chrono_literals;
+    const Clock::time_point t0 = Clock::time_point{} + 1000s;
+
+    AgentActivity state;
+    // 출력이 하나도 없어도 작업 중. 시작한 때는 알려 준 때다
+    state = advanceActivity(state, true, std::nullopt, std::nullopt, t0, true);
+    CHECK(state.working);
+    CHECK(state.startedAt == t0);
+    // 30초 동안 조용해도 그대로 작업 중
+    state = advanceActivity(state, true, std::nullopt, std::nullopt, t0 + 30s, true);
+    CHECK(state.working);
+    CHECK(state.finished == 0);
+    // 다 했다고 알려 주면 바로 입력 대기가 되고, 3초 넘게 한 작업이므로 마친 작업으로 센다
+    state = advanceActivity(state, true, std::nullopt, std::nullopt, t0 + 30s + 100ms, false);
+    CHECK_FALSE(state.working);
+    CHECK(state.finished == 1);
+
+    // 3초보다 짧게 끝난 것은 세지 않는다
+    state = advanceActivity(state, true, std::nullopt, std::nullopt, t0 + 40s, true);
+    state = advanceActivity(state, true, std::nullopt, std::nullopt, t0 + 42s, false);
+    CHECK_FALSE(state.working);
+    CHECK(state.finished == 1);
+
+    // 다 했다고 알려 준 뒤에도 출력이 이어지면(알려 주지 않고 시작된 다음 작업) 출력이 멈출 때까지 작업 중이다
+    state = advanceActivity(state, true, std::nullopt, std::nullopt, t0 + 50s, true);
+    state = advanceActivity(state, true, t0 + 51s, t0 + 55s, t0 + 55s, false);
+    CHECK(state.working);
+    state = advanceActivity(state, true, t0 + 51s, t0 + 55s, t0 + 58s, false);
+    CHECK_FALSE(state.working);
+    CHECK(state.finished == 2);
+}

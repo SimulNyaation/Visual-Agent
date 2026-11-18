@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "data/pty.h"
+#include "domain/agent_hooks.h"
 #include "domain/terminal_rules.h"
 #include "data/shell_finder.h"
 
@@ -31,6 +32,8 @@ struct TerminalView {
     bool busy = false;  // 셸 안에서 무언가 돌고 있음
     bool working = false;   // 에이전트가 작업 중 (아니면 입력을 기다린다). 에이전트가 없으면 false
     unsigned finished = 0;  // 에이전트가 실행된 뒤 마친 작업 수
+    bool asking = false;    // 에이전트가 허락을 묻고 기다리는 중 (훅으로 알려 준 때에만 안다)
+    std::vector<domain::SubAgent> subAgents;  // 에이전트가 지금 부리고 있는 하위 에이전트 (훅으로 알려 준 때에만 안다)
 };
 
 struct TerminalOutput {
@@ -54,6 +57,11 @@ public:
     Terminals& operator=(const Terminals&) = delete;
 
     const std::vector<InstalledShell>& shells() const { return shells_; }
+
+    // 이 뒤에 띄우는 터미널에, 그 안의 에이전트가 훅으로 소식을 보낼 곳을 환경 변수로 알려 준다
+    void setHookEndpoint(int port, std::string token);
+    // 터미널 안의 에이전트가 훅으로 알려 준 소식. 그런 터미널이 없으면 false
+    bool noteHook(const std::string& id, const domain::HookEvent& event);
 
     // 탭의 폴더에서 셸을 띄운다. 앞의 셸부터 차례로 띄워 보고, 처음 뜬 것을 쓴다. 하나도 뜨지 않으면 빈 값
     std::optional<TerminalView> open(const std::string& tabId, const std::filesystem::path& directory);
@@ -94,6 +102,7 @@ private:
         std::string agent;
         bool busy = false;
         domain::AgentActivity activity;
+        domain::HookState hook;  // 에이전트가 훅으로 알려 준 상태
         std::optional<std::chrono::steady_clock::time_point> lastInput;     // 입력이나 크기 변경을 받은 때
         std::optional<std::chrono::steady_clock::time_point> lastActivity;  // 작업으로 친 마지막 출력의 때
         std::optional<std::chrono::steady_clock::time_point> burstStart;    // 그 출력이 이어지기 시작한 때
@@ -104,6 +113,9 @@ private:
 
     void readLoop(const std::shared_ptr<Entry>& entry);
     void noteInput(const std::shared_ptr<Entry>& entry);
+    // 상태를 지금 기준으로 다시 정한다. 화면에 보내는 것이 달라졌으면 true
+    static bool refreshLocked(Entry& entry);
+    static TerminalView viewOf(const Entry& entry);
     void monitorLoop();
     std::shared_ptr<Entry> find(const std::string& id);
     std::vector<std::shared_ptr<Entry>> entriesOfTab(const std::string& tabId);
@@ -121,6 +133,8 @@ private:
     std::uint64_t version_ = 1;
     std::uint64_t waitGeneration_ = 0;
     unsigned nextId_ = 1;
+    int hookPort_ = 0;
+    std::string hookToken_;
     bool stopping_ = false;
     std::thread monitor_;
 };

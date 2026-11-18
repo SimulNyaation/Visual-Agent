@@ -95,6 +95,8 @@ private:
     std::atomic<int> listeners_{0};
     std::atomic<std::chrono::steady_clock::rep> lastListen_{0};
     int port_ = 0;
+    // 터미널 안의 에이전트가 훅으로 소식을 보낼 때 쓰는 값. 화면의 값(token)과 달리 훅 소식을 보내는 데만 쓸 수 있다
+    std::string hookToken_;
 };
 
 std::string generateToken();

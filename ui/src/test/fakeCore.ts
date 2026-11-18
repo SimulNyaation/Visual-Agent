@@ -4,7 +4,7 @@ import type { CoreApi, FileResult, ListResult, ReadFileResult } from "../data/ap
 import { isSameOrInside, joinPath, nameOf, parentOf, type FileChange, type FolderListing } from "../domain/fileTree";
 import { defaultLayout, type Layout } from "../domain/layout";
 import type { ProjectTabsState } from "../domain/projectTabs";
-import type { TerminalEvents, TerminalInfo, TerminalOutput } from "../domain/terminals";
+import type { SubAgentInfo, TerminalEvents, TerminalInfo, TerminalOutput } from "../domain/terminals";
 
 type Kind = "folder" | "file";
 interface Operation {
@@ -38,6 +38,10 @@ export interface FakeTerminals {
   setBusy(id: string, busy: boolean): void;
   /** 에이전트가 작업을 시작한(멈춘) 것처럼 만든다 */
   setWorking(id: string, working: boolean): void;
+  /** 에이전트가 허락을 묻는(답을 받은) 것처럼 만든다 */
+  setAsking(id: string, asking: boolean): void;
+  /** 에이전트가 하위 에이전트를 부리고 있는 것처럼 만든다 */
+  setSubAgents(id: string, subAgents: SubAgentInfo[]): void;
   /** 에이전트가 작업 하나를 마치고 입력을 기다리는 것처럼 만든다 */
   finishWork(id: string): void;
   /** 셸이 스스로 끝난 것처럼 만든다 (exit) */
@@ -288,6 +292,8 @@ export function fakeCore(options: FakeCoreOptions): FakeCore {
         busy: false,
         working: false,
         finished: 0,
+        asking: false,
+        subAgents: [],
       };
       changeTerminals([...terminals, terminal]);
       return { ok: true, terminal };
@@ -465,8 +471,10 @@ export function fakeCore(options: FakeCoreOptions): FakeCore {
         pendingOutput.push({ id, bytes });
         wakeTerminals();
       },
-      setAgent: (id, agent) => patchTerminal(id, { agent, busy: agent !== "", working: false, finished: 0 }),
+      setAgent: (id, agent) => patchTerminal(id, { agent, busy: agent !== "", working: false, finished: 0, asking: false, subAgents: [] }),
       setWorking: (id, working) => patchTerminal(id, { working }),
+      setAsking: (id, asking) => patchTerminal(id, { asking }),
+      setSubAgents: (id, subAgents) => patchTerminal(id, { subAgents, working: subAgents.length > 0 }),
       finishWork: (id) =>
         patchTerminal(id, { working: false, finished: (terminals.find((terminal) => terminal.id === id)?.finished ?? 0) + 1 }),
       setBusy: (id, busy) => patchTerminal(id, { busy }),

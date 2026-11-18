@@ -54,13 +54,54 @@ std::vector<std::shared_ptr<Terminals::Entry>> Terminals::entriesOfTab(const std
     return result;
 }
 
+TerminalView Terminals::viewOf(const Entry& entry) {
+    TerminalView view{entry.id, entry.tabId, entry.shellId, entry.name, entry.agent, entry.busy,
+                      entry.activity.working, entry.activity.finished, false, {}};
+    // 에이전트가 돌고 있지 않으면 훅으로 받은 것도 보이지 않는다
+    if (!entry.agent.empty()) {
+        view.asking = entry.hook.asking;
+        view.subAgents = entry.hook.subAgents;
+    }
+    return view;
+}
+
 std::vector<TerminalView> Terminals::viewsLocked() const {
     std::vector<TerminalView> views;
-    for (const auto& entry : entries_) {
-        views.push_back({entry->id, entry->tabId, entry->shellId, entry->name, entry->agent, entry->busy,
-                         entry->activity.working, entry->activity.finished});
-    }
+    for (const auto& entry : entries_) views.push_back(viewOf(*entry));
     return views;
+}
+
+bool Terminals::refreshLocked(Entry& entry) {
+    const TerminalView before = viewOf(entry);
+    entry.activity = domain::advanceActivity(entry.activity, !entry.agent.empty(), entry.burstStart,
+                                             entry.lastActivity, std::chrono::steady_clock::now(),
+                                             entry.hook.working());
+    const TerminalView after = viewOf(entry);
+    const auto same = [](const domain::SubAgent& a, const domain::SubAgent& b) {
+        return a.id == b.id && a.type == b.type && a.description == b.description;
+    };
+    return before.working != after.working || before.finished != after.finished ||
+           before.asking != after.asking ||
+           !std::equal(before.subAgents.begin(), before.subAgents.end(), after.subAgents.begin(),
+                       after.subAgents.end(), same);
+}
+
+void Terminals::setHookEndpoint(int port, std::string token) {
+    std::lock_guard lock(mutex_);
+    hookPort_ = port;
+    hookToken_ = std::move(token);
+}
+
+bool Terminals::noteHook(const std::string& id, const domain::HookEvent& event) {
+    const auto entry = find(id);
+    if (!entry) return false;
+    std::lock_guard lock(mutex_);
+    entry->hook = domain::applyHookEvent(std::move(entry->hook), event);
+    if (refreshLocked(*entry)) {
+        ++version_;
+        changed_.notify_all();
+    }
+    return true;
 }
 
 bool Terminals::busyNow(const Entry& entry) {
@@ -70,10 +111,24 @@ bool Terminals::busyNow(const Entry& entry) {
 
 std::optional<TerminalView> Terminals::open(const std::string& tabId,
                                             const std::filesystem::path& directory) {
+    // 셸에 터미널의 번호를 알려 줘야 하므로 띄우기 전에 번호를 정한다
+    std::string id;
+    std::vector<std::pair<std::wstring, std::wstring>> environment;
+    {
+        std::lock_guard lock(mutex_);
+        id = "p" + std::to_string(nextId_++);
+        if (hookPort_ > 0) {
+            environment = {{L"VA_HOOK_PORT", std::to_wstring(hookPort_)},
+                           {L"VA_HOOK_TOKEN", std::wstring(hookToken_.begin(), hookToken_.end())},
+                           {L"VA_TERMINAL_ID", std::wstring(id.begin(), id.end())}};
+        }
+    }
+
     const InstalledShell* shell = nullptr;
     std::unique_ptr<Pty> pty;
     for (const auto& candidate : shells_) {
         Pty::Options options;
+        options.environment = environment;
         options.program = candidate.program;
         options.arguments = candidate.arguments;
         options.directory = directory;
@@ -96,14 +151,14 @@ std::optional<TerminalView> Terminals::open(const std::string& tabId,
     for (const auto& other : entries_) {
         if (other->tabId == tabId) used.push_back(other->number);
     }
-    entry->id = "p" + std::to_string(nextId_++);
+    entry->id = id;
     entry->number = domain::nextTerminalNumber(used);
     entry->name = domain::terminalName(shell->label, entry->number);
     entries_.push_back(entry);
     entry->reader = std::thread([this, entry] { readLoop(entry); });
     ++version_;
     changed_.notify_all();
-    return TerminalView{entry->id, entry->tabId, entry->shellId, entry->name, {}, false, false, 0};
+    return viewOf(*entry);
 }
 
 void Terminals::readLoop(const std::shared_ptr<Entry>& entry) {
@@ -182,18 +237,14 @@ void Terminals::monitorLoop() {
                 entry->lastActivity.reset();
                 entry->burstStart.reset();
             }
-            const domain::AgentActivity activity =
-                domain::advanceActivity(entry->activity, !agent.empty(), entry->burstStart,
-                                        entry->lastActivity, std::chrono::steady_clock::now());
-            if (entry->agent != agent || entry->busy != busy || entry->activity.working != activity.working ||
-                entry->activity.finished != activity.finished) {
-                entry->agent = agent;
-                entry->busy = busy;
-                entry->activity = activity;
+            // 에이전트가 끝났으면 훅으로 받은 상태도 버린다 (끝났다는 소식을 보내지 못하고 끝났을 수 있다)
+            if (!entry->agent.empty() && agent.empty()) entry->hook = {};
+            const bool renamed = entry->agent != agent || entry->busy != busy;
+            entry->agent = agent;
+            entry->busy = busy;
+            if (refreshLocked(*entry) || renamed) {
                 ++version_;
                 changed_.notify_all();
-            } else {
-                entry->activity = activity;
             }
         }
     }
@@ -208,6 +259,14 @@ bool Terminals::write(const std::string& id, std::string_view bytes) {
     const auto entry = find(id);
     if (!entry) return false;
     noteInput(entry);
+    {
+        std::lock_guard lock(mutex_);
+        entry->hook = domain::noteUserInput(std::move(entry->hook), bytes);
+        if (refreshLocked(*entry)) {
+            ++version_;
+            changed_.notify_all();
+        }
+    }
     return entry->pty->write(bytes);
 }
 

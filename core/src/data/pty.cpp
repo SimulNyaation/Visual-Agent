@@ -1,6 +1,8 @@
 #include "data/pty.h"
 
 #include <algorithm>
+#include <cwchar>
+#include <cwctype>
 
 #include <windows.h>
 
@@ -50,6 +52,33 @@ void addDescendants(std::vector<unsigned long>& ids) {
             added = true;
         }
     }
+}
+
+std::wstring upper(std::wstring text) {
+    std::transform(text.begin(), text.end(), text.begin(),
+                   [](wchar_t c) { return static_cast<wchar_t>(std::towupper(c)); });
+    return text;
+}
+
+// 앱의 환경 변수에 extra를 더한 묶음 ("이름=값" 뒤에 0, 맨 끝에 0 하나 더). extra가 없으면 빈 값
+std::wstring environmentBlock(const std::vector<std::pair<std::wstring, std::wstring>>& extra) {
+    if (extra.empty()) return {};
+    std::wstring block;
+    wchar_t* const current = GetEnvironmentStringsW();
+    if (current != nullptr) {
+        for (const wchar_t* item = current; *item != L'\0'; item += std::wcslen(item) + 1) {
+            const std::wstring entry = item;
+            // "=C:=C:\..."처럼 =로 시작하는 것은 드라이브마다의 현재 위치다. 이름의 끝은 그 뒤의 =이다
+            const std::wstring name = upper(entry.substr(0, entry.find(L'=', 1)));
+            const bool replaced = std::any_of(extra.begin(), extra.end(),
+                                              [&](const auto& pair) { return upper(pair.first) == name; });
+            if (!replaced) block.append(entry).push_back(L'\0');
+        }
+        FreeEnvironmentStringsW(current);
+    }
+    for (const auto& [name, value] : extra) block.append(name + L"=" + value).push_back(L'\0');
+    block.push_back(L'\0');
+    return block;
 }
 
 void closeHandle(void*& handle) {
@@ -108,10 +137,13 @@ std::unique_ptr<Pty> Pty::start(const Options& options) {
     // 터미널에서 Ctrl+C로 프로그램을 멈출 수 없게 된다. 물려주기 전에 보통 상태로 돌려놓는다
     SetConsoleCtrlHandler(nullptr, FALSE);
 
+    std::wstring environment = environmentBlock(options.environment);
+
     PROCESS_INFORMATION info{};
     const BOOL started = CreateProcessW(
         options.program.c_str(), command.data(), nullptr, nullptr, FALSE,
-        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED, nullptr,
+        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED,
+        environment.empty() ? nullptr : environment.data(),
         options.directory.c_str(), &startup.StartupInfo, &info);
     DeleteProcThreadAttributeList(attributes);
     if (!started) return nullptr;

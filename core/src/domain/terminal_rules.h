@@ -58,16 +58,19 @@ struct AgentActivity {
     bool working = false;        // 작업 중
     unsigned finished = 0;       // 에이전트가 실행된 뒤 마친 작업 수
     Clock::time_point startedAt; // 지금 작업이 시작된 때 (working일 때만 뜻이 있다)
+    bool reported = false;       // 에이전트가 스스로 작업 중이라고 알려 준 상태였다 (working일 때만 뜻이 있다)
 };
 
 // 출력이 사용자의 입력에 대한 화면 갱신인지
 bool isEchoOutput(std::optional<Clock::time_point> lastInput, Clock::time_point outputAt);
 
 // 지금 상태를 다시 정한다. lastActivity는 작업으로 친 마지막 출력의 때,
-// burstStart는 그 출력이 속한 "끊기지 않고 이어진 출력"이 시작된 때
+// burstStart는 그 출력이 속한 "끊기지 않고 이어진 출력"이 시작된 때.
+// reported는 에이전트가 훅으로 스스로 작업 중이라고 알려 준 상태인지. 그러면 화면이 조용해도 작업 중이다
 AgentActivity advanceActivity(AgentActivity current, bool agentRunning,
                               std::optional<Clock::time_point> burstStart,
-                              std::optional<Clock::time_point> lastActivity, Clock::time_point now);
+                              std::optional<Clock::time_point> lastActivity, Clock::time_point now,
+                              bool reported = false);
 
 // 새 출력이 앞의 출력에 이어진 것인지 (아니면 새로 시작된 출력이다)
 bool continuesBurst(std::optional<Clock::time_point> lastActivity, Clock::time_point outputAt);

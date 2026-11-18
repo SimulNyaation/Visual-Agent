@@ -36,6 +36,18 @@ npm run check     # 품질 게이트: 린트, 테스트, 빌드, 실제 앱 창 
 
 다른 Windows PC에서 쓰려면 `build/dist/Visual-Agent` 폴더를 통째로 복사한다.
 
+### Claude Code 연결 (하위 에이전트 줄, 허락 대기)
+
+Claude Code가 부린 하위 에이전트와 허락 대기를 에이전트 칸에서 보려면 Claude Code 설정에 훅을 넣는다. 빌드한 뒤 한 번만 하면 된다.
+
+```
+node scripts/claude-hooks.mjs install   # ~/.claude/settings.json 에 훅 9개를 넣는다 (다른 훅은 건드리지 않는다)
+node scripts/claude-hooks.mjs status
+node scripts/claude-hooks.mjs remove    # 넣은 훅만 뺀다
+```
+
+훅은 Visual-Agent의 터미널에서 실행한 Claude Code에서만 일하고, 다른 곳에서는 바로 끝난다. 처음 고치기 전의 설정은 `settings.json.before-visual-agent`로 남는다. 넣지 않아도 앱은 전처럼 동작한다 (상태를 터미널 출력으로 짐작한다).
+
 ## 작업 방식
 
 [Season0 Framework](AGENTS.md)를 따른다: 원문 요청 → 명세 → 사람 승인 → 구현 → 증적 기반 검증.

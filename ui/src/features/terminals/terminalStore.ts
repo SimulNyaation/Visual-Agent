@@ -22,6 +22,8 @@ export interface TerminalSnapshot {
   activeId: string | null;
   /** 확인하지 않은 "끝남"이 있는 프로젝트 탭들 */
   attentionTabs: string[];
+  /** 보고 있지 않은 터미널의 에이전트가 허락을 기다리고 있는 프로젝트 탭들 */
+  askingTabs: string[];
   screen: TerminalScreen | null;
   /** 실행 중인 프로그램이 있어 닫기 전에 묻고 있는 것 */
   question: CloseQuestion | null;
@@ -86,10 +88,14 @@ export function createTerminalStore(api: TerminalsApi, tabs: ProjectTabsStore, c
       status: statusOf(terminal),
     }));
     const attentionTabs = [...new Set(all.filter((terminal) => statusOf(terminal) === "finished").map((terminal) => terminal.tabId))];
+    const askingTabs = [
+      ...new Set(all.filter((terminal) => terminal.id !== activeId && statusOf(terminal) === "asking").map((terminal) => terminal.tabId)),
+    ];
     return {
       terminals,
       activeId,
       attentionTabs,
+      askingTabs,
       screen: activeId ? screenOf(activeId) : null,
       question,
       error: (tabId && errors.get(tabId)) ?? null,

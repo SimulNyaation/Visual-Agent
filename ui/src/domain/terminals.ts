@@ -1,5 +1,24 @@
 // 터미널의 모양과 규칙. 코어가 보내주는 내용과 같다.
 
+/** 에이전트가 부린 하위 에이전트 하나 */
+export interface SubAgentInfo {
+  id: string;
+  /** 종류. 예: "Explore" */
+  type: string;
+  /** 맡긴 일의 짧은 설명. 알 수 없으면 빈 문자열 */
+  description: string;
+}
+
+/** 하위 에이전트 줄에 크게 보이는 글자: 맡긴 일의 설명, 없으면 종류 */
+export function subAgentTitle(sub: SubAgentInfo): string {
+  return sub.description || sub.type || "하위 에이전트";
+}
+
+/** 하위 에이전트 줄에 작게 덧붙는 글자: 설명이 있을 때의 종류. 없으면 null */
+export function subAgentKind(sub: SubAgentInfo): string | null {
+  return sub.description && sub.type ? sub.type : null;
+}
+
 export interface TerminalInfo {
   id: string;
   tabId: string;
@@ -15,12 +34,17 @@ export interface TerminalInfo {
   working: boolean;
   /** 에이전트가 실행된 뒤 마친 작업 수 */
   finished: number;
+  /** 에이전트가 허락을 묻고 기다리는 중 (에이전트가 훅으로 알려 줄 때에만 안다) */
+  asking: boolean;
+  /** 에이전트가 지금 부리고 있는 하위 에이전트 (에이전트가 훅으로 알려 줄 때에만 안다) */
+  subAgents: SubAgentInfo[];
 }
 
 /** 에이전트의 상태. finished는 보고 있지 않은 사이에 작업을 마쳤고 아직 확인하지 않았다는 뜻 */
-export type AgentStatus = "working" | "waiting" | "finished";
+export type AgentStatus = "asking" | "working" | "waiting" | "finished";
 
 export const agentStatusText: Record<AgentStatus, string> = {
+  asking: "허락 대기",
   working: "작업 중",
   waiting: "입력 대기",
   finished: "끝남",
@@ -29,6 +53,7 @@ export const agentStatusText: Record<AgentStatus, string> = {
 /** 터미널의 에이전트 상태. seenFinished는 사용자가 확인한 마친 작업 수 */
 export function agentStatusOf(terminal: TerminalInfo, seenFinished: number): AgentStatus | null {
   if (terminal.agent === "") return null;
+  if (terminal.asking) return "asking";
   if (terminal.working) return "working";
   return terminal.finished > seenFinished ? "finished" : "waiting";
 }
@@ -103,6 +128,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isSubAgent(value: unknown): value is SubAgentInfo {
+  return isRecord(value) && typeof value.id === "string" && typeof value.type === "string" && typeof value.description === "string";
+}
+
 function isTerminal(value: unknown): value is TerminalInfo {
   return (
     isRecord(value) &&
@@ -113,7 +142,10 @@ function isTerminal(value: unknown): value is TerminalInfo {
     typeof value.agent === "string" &&
     typeof value.busy === "boolean" &&
     typeof value.working === "boolean" &&
-    typeof value.finished === "number"
+    typeof value.finished === "number" &&
+    typeof value.asking === "boolean" &&
+    Array.isArray(value.subAgents) &&
+    value.subAgents.every(isSubAgent)
   );
 }
 
