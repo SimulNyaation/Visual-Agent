@@ -1,8 +1,8 @@
 // 에이전트 칸. 터미널마다 한 줄씩 보여 주고, 그 터미널에서 에이전트가 돌고 있으면 이름을 함께 보여 준다.
-import { terminalLabel, type TerminalInfo } from "../domain/terminals";
+import { terminalLabel, type TerminalRow } from "../domain/terminals";
 
 interface PaneProps {
-  terminals: TerminalInfo[];
+  terminals: TerminalRow[];
   activeId: string | null;
   onSelect(id: string): void;
   onClose(id: string): void;
@@ -22,10 +22,18 @@ export function AgentPane({ terminals, activeId, onSelect, onClose }: PaneProps)
               className="agentrow__select"
               aria-label={terminalLabel(terminal)}
               aria-current={selected}
+              title={terminal.title ?? undefined}
               onClick={() => onSelect(terminal.id)}
             >
               <span className={terminal.agent ? "agentrow__dot agentrow__dot--running" : "agentrow__dot"} aria-hidden="true" />
-              {terminal.agent ? (
+              {terminal.title ? (
+                <span className="agentrow__titled">
+                  <span className="agentrow__title">{terminal.title}</span>
+                  <span className="agentrow__meta">
+                    {terminal.agent} · {terminal.name}
+                  </span>
+                </span>
+              ) : terminal.agent ? (
                 <>
                   <span className="agentrow__agent">{terminal.agent}</span>
                   <span className="agentrow__shell">{terminal.name}</span>

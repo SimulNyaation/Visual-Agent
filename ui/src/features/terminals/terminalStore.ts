@@ -2,19 +2,21 @@
 // 터미널마다 글자 화면을 하나씩 만들어 두고, 보이지 않는 동안에도 코어에서 온 출력을 그 화면에 적어 둔다.
 import type { TerminalsApi } from "../../data/apiClient";
 import { activeTab } from "../../domain/projectTabs";
+import { displayName, emptyNaming, followInput, questionFromLine, topicFromTitle, type TerminalNaming } from "../../domain/terminalNames";
 import {
   terminalErrorMessage,
   type CloseQuestion,
   type ScreenFactory,
   type TerminalEvents,
   type TerminalInfo,
+  type TerminalRow,
   type TerminalScreen,
 } from "../../domain/terminals";
 import type { ProjectTabsStore } from "../projectTabs/projectTabsStore";
 
 export interface TerminalSnapshot {
   /** 지금 보고 있는 프로젝트 탭의 터미널들 */
-  terminals: TerminalInfo[];
+  terminals: TerminalRow[];
   /** 작업 영역에 보이는 터미널 */
   activeId: string | null;
   screen: TerminalScreen | null;
@@ -52,6 +54,8 @@ export function createTerminalStore(api: TerminalsApi, tabs: ProjectTabsStore, c
   /** 방금 띄워 달라고 한 터미널. 목록에 나타나면 그 탭에서 보이게 한다 */
   const wantedByTab = new Map<string, string>();
   const errors = new Map<string, string>();
+  /** 터미널마다 정해진 이름 (대화의 주제나 첫 질문) */
+  const namings = new Map<string, TerminalNaming>();
 
   let all: TerminalInfo[] = [];
   let tabId: string | null = null;
@@ -62,7 +66,10 @@ export function createTerminalStore(api: TerminalsApi, tabs: ProjectTabsStore, c
   let snapshot: TerminalSnapshot = build();
 
   function build(): TerminalSnapshot {
-    const terminals = tabId ? all.filter((terminal) => terminal.tabId === tabId) : [];
+    const terminals = (tabId ? all.filter((terminal) => terminal.tabId === tabId) : []).map((terminal) => ({
+      ...terminal,
+      title: terminal.agent ? displayName(namings.get(terminal.id)) : null,
+    }));
     const activeId = (tabId && activeByTab.get(tabId)) ?? null;
     return {
       terminals,
@@ -79,8 +86,53 @@ export function createTerminalStore(api: TerminalsApi, tabs: ProjectTabsStore, c
     listeners.forEach((listener) => listener());
   }
 
+  const namingOf = (id: string) => namings.get(id) ?? emptyNaming;
+  const agentOf = (id: string) => all.find((terminal) => terminal.id === id)?.agent ?? "";
+
+  function titleContext(id: string) {
+    const terminal = all.find((candidate) => candidate.id === id);
+    const folder = tabs.getSnapshot().state.tabs.find((tab) => tab.id === terminal?.tabId)?.name ?? "";
+    return { agent: terminal?.agent ?? "", folder };
+  }
+
+  /** 사용자가 넣은 글자에서 첫 질문을 알아낸다 */
+  function noteInput(id: string, data: string) {
+    const before = namingOf(id);
+    const { naming, sent } = followInput(before, data);
+    let next = naming;
+    // 에이전트가 돌고 있지 않을 때 보낸 글은 셸에 넣은 명령이다
+    if (agentOf(id) !== "" && next.question === null) {
+      const question = sent.map(questionFromLine).find((line) => line !== null);
+      if (question) next = { ...next, question };
+    }
+    namings.set(id, next);
+    if (displayName(next) !== displayName(before)) publish();
+  }
+
+  /** 에이전트가 알려 준 터미널 제목에서 주제를 알아낸다 */
+  function noteTitle(id: string, title: string) {
+    // 에이전트가 돌고 있지 않을 때의 제목은 셸이 보낸 것이다 (실행한 명령, 셸의 경로)
+    if (agentOf(id) === "") return;
+    const before = namingOf(id);
+    const topic = topicFromTitle(title, titleContext(id));
+    if (topic === null || topic === before.topic) return;
+    namings.set(id, { ...before, topic });
+    publish();
+  }
+
+  /** 에이전트가 실행되면 이름을 새로 정하기 시작하고, 끝나면 이름을 버린다 */
+  function noteAgents(previous: TerminalInfo[], current: TerminalInfo[]) {
+    for (const terminal of current) {
+      const was = previous.find((candidate) => candidate.id === terminal.id)?.agent ?? "";
+      if (was === terminal.agent) continue;
+      const naming = namingOf(terminal.id);
+      namings.set(terminal.id, { ...emptyNaming, draft: naming.draft, pasting: naming.pasting });
+    }
+  }
+
   /** 입력은 한 번에 하나씩 차례로 보낸다. 여러 요청이 동시에 가면 글자 순서가 뒤바뀔 수 있다 */
   function sendInput(id: string, data: string) {
+    noteInput(id, data);
     let queue = inputs.get(id);
     if (!queue) {
       queue = { pending: "", sending: false };
@@ -110,6 +162,7 @@ export function createTerminalStore(api: TerminalsApi, tabs: ProjectTabsStore, c
       screen = createScreen({
         onInput: (data) => sendInput(id, data),
         onResize: (columns, rows) => void api.resizeTerminal(id, columns, rows).catch(() => undefined),
+        onTitle: (title) => noteTitle(id, title),
       });
       screens.set(id, screen);
     }
@@ -119,13 +172,16 @@ export function createTerminalStore(api: TerminalsApi, tabs: ProjectTabsStore, c
   function apply(events: TerminalEvents) {
     for (const chunk of events.output) screenOf(chunk.id).write(chunk.bytes);
 
+    const previous = all;
     all = events.terminals;
+    noteAgents(previous, all);
     const alive = new Set(all.map((terminal) => terminal.id));
     for (const [id, screen] of screens) {
       if (alive.has(id)) continue;
       screen.dispose();
       screens.delete(id);
       inputs.delete(id);
+      namings.delete(id);
     }
 
     for (const [tab, id] of wantedByTab) {

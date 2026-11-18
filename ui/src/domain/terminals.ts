@@ -13,6 +13,12 @@ export interface TerminalInfo {
   busy: boolean;
 }
 
+/** 에이전트 칸의 터미널 줄 하나 */
+export interface TerminalRow extends TerminalInfo {
+  /** 대화의 주제나 첫 질문으로 정해진 이름. 없으면 null (name을 쓴다) */
+  title: string | null;
+}
+
 export interface TerminalOutput {
   id: string;
   bytes: Uint8Array;
@@ -40,6 +46,8 @@ export interface ScreenHandlers {
   onInput(data: string): void;
   /** 화면 크기에 맞춰 가로·세로 글자 수가 바뀜 */
   onResize(columns: number, rows: number): void;
+  /** 터미널에서 도는 프로그램이 터미널 제목을 알려 줌 */
+  onTitle(title: string): void;
 }
 
 export type ScreenFactory = (handlers: ScreenHandlers) => TerminalScreen;

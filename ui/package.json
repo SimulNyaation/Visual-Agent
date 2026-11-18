@@ -10,7 +10,7 @@
     "lint": "eslint . --max-warnings 0",
     "lint:colors": "node scripts/lint-colors.mjs",
     "test": "vitest run",
-    "e2e": "node --test --test-concurrency=1 --test-timeout=180000 e2e/app.e2e.mjs e2e/files.e2e.mjs e2e/terminal.e2e.mjs e2e/layout.e2e.mjs",
+    "e2e": "node --test --test-concurrency=1 --test-timeout=180000 e2e/app.e2e.mjs e2e/files.e2e.mjs e2e/terminal.e2e.mjs e2e/terminal-names.e2e.mjs e2e/layout.e2e.mjs",
     "e2e:mouse": "node --test --test-concurrency=1 --test-timeout=180000 e2e/caption.e2e.mjs e2e/mouse.e2e.mjs e2e/files-real.e2e.mjs e2e/terminal-real.e2e.mjs e2e/layout-real.e2e.mjs"
   },
   "dependencies": {

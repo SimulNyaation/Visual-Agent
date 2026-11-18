@@ -442,7 +442,7 @@ p {
 .agentrow {
   display: flex;
   align-items: center;
-  height: 28px;
+  min-height: 28px;
   padding: 0 6px 0 12px;
 }
 
@@ -458,7 +458,8 @@ p {
 .agentrow__select {
   flex: 1;
   min-width: 0;
-  height: 100%;
+  align-self: stretch;
+  min-height: 28px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -473,6 +474,33 @@ p {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 이름이 정해진 줄: 위에 대화의 주제, 아래에 에이전트와 터미널 이름 */
+.agentrow__titled {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 0;
+  text-align: left;
+}
+
+.agentrow__title,
+.agentrow__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentrow__title {
+  font-weight: 600;
+}
+
+.agentrow__meta {
+  color: var(--text-2);
+  font-size: 11px;
 }
 
 .agentrow__agent {

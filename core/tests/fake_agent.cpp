@@ -1,6 +1,7 @@
 // 터미널 테스트에서 에이전트 대신 실행하는 시험용 프로그램.
 // 실제 에이전트처럼 화면 전체를 쓰고(다른 화면으로 바꾸고, 색과 테두리를 그리고, 커서를 옮긴다),
 // 받은 키의 이름을 화면과 기록 파일에 적는다. q나 Ctrl+C를 받으면 끝난다.
+// 실제 에이전트처럼 터미널 제목도 알려 준다: 시작할 때 자기 이름, F2·F3을 받으면 대화의 주제, F4를 받으면 폴더 경로.
 // 사용: va_fake_agent [기록 파일]
 #include <cstdio>
 #include <string>
@@ -39,6 +40,18 @@ void draw(const std::string& lastKey) {
     put(screen);
 }
 
+void setTitle(const std::string& title) {
+    put("\x1b]0;" + title + "\x07");
+}
+
+// 받은 글자에 제목을 바꾸는 키가 들어 있으면 제목을 알려 준다 (키 여러 개가 한꺼번에 읽힐 수 있다)
+void announceTitle(const std::string& bytes) {
+    const auto has = [&bytes](const char* key) { return bytes.find(key) != std::string::npos; };
+    if (has("\x1bOQ")) setTitle("\xE2\x9C\xB3 Fix login error");  // F2: ✳ + 주제
+    if (has("\x1bOR")) setTitle("\xE2\xA0\x90 Translate README");  // F3: 진행 표시 + 다른 주제
+    if (has("\x1bOS")) setTitle("C:\\work\\alpha");  // F4: 주제가 아닌 것
+}
+
 std::string keyName(const std::string& bytes) {
     if (bytes == "\x1b[A") return "UP";
     if (bytes == "\x1b[B") return "DOWN";
@@ -60,12 +73,14 @@ int main(int argc, char** argv) {
     SetConsoleMode(g_out, ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
 
     put("\x1b[?1049h");
+    setTitle("claude");
     draw("-");
 
     for (;;) {
         char buffer[64];
         DWORD count = 0;
         if (!ReadFile(in, buffer, sizeof(buffer), &count, nullptr) || count == 0) break;
+        announceTitle(std::string(buffer, count));
         const std::string name = keyName(std::string(buffer, count));
 
         if (argc > 1) {

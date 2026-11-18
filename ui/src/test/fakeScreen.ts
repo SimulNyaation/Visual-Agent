@@ -9,6 +9,8 @@ export interface FakeScreen extends TerminalScreen {
   type(data: string): void;
   /** 화면 크기가 바뀌어 가로·세로 글자 수가 달라진 것처럼 만든다 */
   resize(columns: number, rows: number): void;
+  /** 터미널에서 도는 프로그램이 터미널 제목을 알려 준 것처럼 만든다 */
+  title(text: string): void;
   disposed: boolean;
 }
 
@@ -33,6 +35,7 @@ export function fakeScreens(): { create: ScreenFactory; all: FakeScreen[] } {
       text: () => element.textContent ?? "",
       type: (data) => handlers.onInput(data),
       resize: (columns, rows) => handlers.onResize(columns, rows),
+      title: (text) => handlers.onTitle(text),
       disposed: false,
     };
     all.push(screen);

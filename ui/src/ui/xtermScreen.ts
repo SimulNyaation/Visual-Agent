@@ -61,6 +61,7 @@ export function createXtermScreen(handlers: ScreenHandlers): TerminalScreen {
 
   terminal.onData(handlers.onInput);
   terminal.onResize(({ cols, rows }) => handlers.onResize(cols, rows));
+  terminal.onTitleChange(handlers.onTitle);
 
   // 글자 키는 물리 위치(code)와 글자(key) 어느 쪽으로든 알아본다 (한글 입력 상태, 화상 키보드)
   const isLetter = (event: KeyboardEvent, letter: string) =>
