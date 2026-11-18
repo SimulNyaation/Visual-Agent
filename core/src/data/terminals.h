@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "data/pty.h"
+#include "domain/terminal_rules.h"
 #include "data/shell_finder.h"
 
 namespace va::data {
@@ -28,6 +29,8 @@ struct TerminalView {
     std::string name;   // 예: "PowerShell 1"
     std::string agent;  // 실행 중인 에이전트 이름. 없으면 빈 문자열
     bool busy = false;  // 셸 안에서 무언가 돌고 있음
+    bool working = false;   // 에이전트가 작업 중 (아니면 입력을 기다린다). 에이전트가 없으면 false
+    unsigned finished = 0;  // 에이전트가 실행된 뒤 마친 작업 수
 };
 
 struct TerminalOutput {
@@ -90,12 +93,17 @@ private:
         std::thread reader;
         std::string agent;
         bool busy = false;
+        domain::AgentActivity activity;
+        std::optional<std::chrono::steady_clock::time_point> lastInput;     // 입력이나 크기 변경을 받은 때
+        std::optional<std::chrono::steady_clock::time_point> lastActivity;  // 작업으로 친 마지막 출력의 때
+        std::optional<std::chrono::steady_clock::time_point> burstStart;    // 그 출력이 이어지기 시작한 때
         bool closing = false;
         std::chrono::steady_clock::time_point closeAt;  // 닫기 시작한 때
         std::atomic<bool> finished{false};
     };
 
     void readLoop(const std::shared_ptr<Entry>& entry);
+    void noteInput(const std::shared_ptr<Entry>& entry);
     void monitorLoop();
     std::shared_ptr<Entry> find(const std::string& id);
     std::vector<std::shared_ptr<Entry>> entriesOfTab(const std::string& tabId);

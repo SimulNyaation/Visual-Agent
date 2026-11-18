@@ -5,6 +5,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <thread>
 
@@ -340,4 +341,52 @@ TEST_CASE("모두 닫으면 터미널에서 돌던 셸이 남지 않는다 (AC29
     }
     CHECK(std::none_of(shells.begin(), shells.end(), running));
     CHECK_FALSE(terminals.open("t1", dir.path()));
+}
+
+TEST_CASE("에이전트 상태: 에이전트가 작업하는 동안 작업 중, 멈추면 입력 대기가 되고 마친 작업을 센다 (AC2, AC3, AC5)") {
+    TerminalsFixture f;
+    va::test::TempDir dir;
+    fs::copy_file(VA_FAKE_AGENT_PATH, dir.path() / "claude.exe");
+    const auto id = f.openCmd();
+    REQUIRE(f.terminals.write(id, "\"" + va::domain::toUtf8(dir.path() / "claude.exe") + "\"\r"));
+    REQUIRE(f.untilSeen("FAKE AGENT READY"));
+
+    const auto state = [&] { return f.terminals.list().at(0); };
+    const auto within = [&](std::chrono::milliseconds limit, const std::function<bool()>& check) {
+        const auto deadline = std::chrono::steady_clock::now() + limit;
+        while (!check() && std::chrono::steady_clock::now() < deadline) std::this_thread::sleep_for(50ms);
+        return check();
+    };
+
+    // 실행된 직후에는 입력 대기
+    REQUIRE(within(5s, [&] { return state().agent == "Claude Code" && !state().working; }));
+    CHECK(state().finished == 0);
+
+    // 글자를 넣는 것만으로는 작업 중이 되지 않는다 (시험용 프로그램은 키마다 화면을 다시 그린다)
+    for (int i = 0; i < 6; ++i) {
+        REQUIRE(f.terminals.write(id, "a"));
+        std::this_thread::sleep_for(150ms);
+        CHECK_FALSE(state().working);
+    }
+
+    // 1초짜리 화면 갱신: 마친 작업으로 세지 않는다
+    std::this_thread::sleep_for(500ms);
+    REQUIRE(f.terminals.write(id, "e"));
+    std::this_thread::sleep_for(4500ms);
+    CHECK_FALSE(state().working);
+    CHECK(state().finished == 0);
+
+    // 4초짜리 작업: 3초 안에 작업 중이 되고, 끝나면 입력 대기가 되며 마친 작업이 하나 늘어난다
+    REQUIRE(f.terminals.write(id, "w"));
+    CHECK(within(3s, [&] { return state().working; }));
+    std::this_thread::sleep_for(2s);
+    CHECK(state().working);
+    CHECK(within(8s, [&] { return !state().working; }));
+    CHECK(state().finished == 1);
+
+    // 에이전트를 끝내면 상태가 없어진다
+    REQUIRE(f.terminals.write(id, "q"));
+    CHECK(within(5s, [&] { return state().agent.empty(); }));
+    CHECK_FALSE(state().working);
+    CHECK(state().finished == 0);
 }

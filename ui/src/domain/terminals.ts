@@ -11,12 +11,34 @@ export interface TerminalInfo {
   agent: string;
   /** 셸 안에서 무언가 돌고 있음 */
   busy: boolean;
+  /** 에이전트가 작업 중 (아니면 입력을 기다린다). 에이전트가 없으면 false */
+  working: boolean;
+  /** 에이전트가 실행된 뒤 마친 작업 수 */
+  finished: number;
+}
+
+/** 에이전트의 상태. finished는 보고 있지 않은 사이에 작업을 마쳤고 아직 확인하지 않았다는 뜻 */
+export type AgentStatus = "working" | "waiting" | "finished";
+
+export const agentStatusText: Record<AgentStatus, string> = {
+  working: "작업 중",
+  waiting: "입력 대기",
+  finished: "끝남",
+};
+
+/** 터미널의 에이전트 상태. seenFinished는 사용자가 확인한 마친 작업 수 */
+export function agentStatusOf(terminal: TerminalInfo, seenFinished: number): AgentStatus | null {
+  if (terminal.agent === "") return null;
+  if (terminal.working) return "working";
+  return terminal.finished > seenFinished ? "finished" : "waiting";
 }
 
 /** 에이전트 칸의 터미널 줄 하나 */
 export interface TerminalRow extends TerminalInfo {
   /** 대화의 주제나 첫 질문으로 정해진 이름. 없으면 null (name을 쓴다) */
   title: string | null;
+  /** 에이전트의 상태. 에이전트가 없으면 null */
+  status: AgentStatus | null;
 }
 
 export interface TerminalOutput {
@@ -89,7 +111,9 @@ function isTerminal(value: unknown): value is TerminalInfo {
     typeof value.shell === "string" &&
     typeof value.name === "string" &&
     typeof value.agent === "string" &&
-    typeof value.busy === "boolean"
+    typeof value.busy === "boolean" &&
+    typeof value.working === "boolean" &&
+    typeof value.finished === "number"
   );
 }
 

@@ -59,7 +59,8 @@ std::string base64(const std::string& bytes) {
 
 json terminalJson(const data::TerminalView& view) {
     return {{"id", view.id},       {"tabId", view.tabId}, {"shell", view.shell},
-            {"name", view.name},   {"agent", view.agent}, {"busy", view.busy}};
+            {"name", view.name},   {"agent", view.agent}, {"busy", view.busy},
+            {"working", view.working}, {"finished", view.finished}};
 }
 
 std::chrono::steady_clock::rep nowTicks() {

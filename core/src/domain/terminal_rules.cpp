@@ -70,3 +70,33 @@ bool hasRunningProgram(const std::vector<ProcessInfo>& processes, unsigned long 
 }
 
 }  // namespace va::domain
+
+namespace va::domain {
+
+bool isEchoOutput(std::optional<Clock::time_point> lastInput, Clock::time_point outputAt) {
+    return lastInput && outputAt >= *lastInput && outputAt - *lastInput < kEchoWindow;
+}
+
+bool continuesBurst(std::optional<Clock::time_point> lastActivity, Clock::time_point outputAt) {
+    return lastActivity && outputAt - *lastActivity < kQuietMeansWaiting;
+}
+
+AgentActivity advanceActivity(AgentActivity current, bool agentRunning,
+                              std::optional<Clock::time_point> burstStart,
+                              std::optional<Clock::time_point> lastActivity, Clock::time_point now) {
+    // 에이전트가 끝나면 상태도 없다. 다시 실행하면 처음부터 센다
+    if (!agentRunning) return {};
+
+    const bool recent = burstStart && lastActivity && now - *lastActivity < kQuietMeansWaiting;
+    const bool active = recent && *lastActivity - *burstStart >= kSustainedOutput;
+    if (active && !current.working) {
+        current.working = true;
+        current.startedAt = *burstStart;
+    } else if (!active && current.working) {
+        current.working = false;
+        if (lastActivity && *lastActivity - current.startedAt >= kShortestRun) ++current.finished;
+    }
+    return current;
+}
+
+}  // namespace va::domain

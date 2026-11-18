@@ -2,9 +2,12 @@
 // 실제 에이전트처럼 화면 전체를 쓰고(다른 화면으로 바꾸고, 색과 테두리를 그리고, 커서를 옮긴다),
 // 받은 키의 이름을 화면과 기록 파일에 적는다. q나 Ctrl+C를 받으면 끝난다.
 // 실제 에이전트처럼 터미널 제목도 알려 준다: 시작할 때 자기 이름, F2·F3을 받으면 대화의 주제, F4를 받으면 폴더 경로.
+// 실제 에이전트가 작업하는 모습도 흉내 낸다: w를 받으면 4초, e를 받으면 1초 동안 0.2초마다 진행 표시를 그린다.
 // 사용: va_fake_agent [기록 파일]
 #include <cstdio>
+#include <atomic>
 #include <string>
+#include <thread>
 
 #include <windows.h>
 
@@ -52,6 +55,20 @@ void announceTitle(const std::string& bytes) {
     if (has("\x1bOS")) setTitle("C:\\work\\alpha");  // F4: 주제가 아닌 것
 }
 
+std::atomic<int> g_ticksLeft{0};
+
+// 작업하는 동안 화면 넷째 줄 아래에 진행 표시를 계속 고쳐 그린다
+void workLoop() {
+    int drawn = 0;
+    for (;;) {
+        Sleep(200);
+        if (g_ticksLeft.load() <= 0) continue;
+        --g_ticksLeft;
+        put("\x1b[s\x1b[6;3Hworking " + std::to_string(++drawn) + "   \x1b[u");
+        if (g_ticksLeft.load() == 0) put("\x1b[s\x1b[6;3Hwork done      \x1b[u");
+    }
+}
+
 std::string keyName(const std::string& bytes) {
     if (bytes == "\x1b[A") return "UP";
     if (bytes == "\x1b[B") return "DOWN";
@@ -72,6 +89,7 @@ int main(int argc, char** argv) {
     SetConsoleMode(in, ENABLE_VIRTUAL_TERMINAL_INPUT);
     SetConsoleMode(g_out, ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
 
+    std::thread(workLoop).detach();
     put("\x1b[?1049h");
     setTitle("claude");
     draw("-");
@@ -91,6 +109,8 @@ int main(int argc, char** argv) {
             }
         }
         if (name == "q" || name == "CTRL+C") break;
+        if (name == "w") g_ticksLeft = 20;
+        if (name == "e") g_ticksLeft = 5;
         draw(name);
     }
 

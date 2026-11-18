@@ -1,5 +1,5 @@
 // 에이전트 칸. 터미널마다 한 줄씩 보여 주고, 그 터미널에서 에이전트가 돌고 있으면 이름을 함께 보여 준다.
-import { terminalLabel, type TerminalRow } from "../domain/terminals";
+import { agentStatusText, terminalLabel, type TerminalRow } from "../domain/terminals";
 
 interface PaneProps {
   terminals: TerminalRow[];
@@ -15,6 +15,8 @@ export function AgentPane({ terminals, activeId, onSelect, onClose }: PaneProps)
     <ul className="agents" aria-label="터미널 목록">
       {terminals.map((terminal) => {
         const selected = terminal.id === activeId;
+        const statusId = `agent-status-${terminal.id}`;
+        const dot = terminal.status ? `agentrow__dot agentrow__dot--${terminal.status}` : "agentrow__dot";
         return (
           <li key={terminal.id} className={selected ? "agentrow agentrow--selected" : "agentrow"}>
             <button
@@ -22,10 +24,11 @@ export function AgentPane({ terminals, activeId, onSelect, onClose }: PaneProps)
               className="agentrow__select"
               aria-label={terminalLabel(terminal)}
               aria-current={selected}
+              aria-describedby={terminal.status ? statusId : undefined}
               title={terminal.title ?? undefined}
               onClick={() => onSelect(terminal.id)}
             >
-              <span className={terminal.agent ? "agentrow__dot agentrow__dot--running" : "agentrow__dot"} aria-hidden="true" />
+              <span className={terminal.agent ? `${dot} agentrow__dot--running` : dot} aria-hidden="true" />
               {terminal.title ? (
                 <span className="agentrow__titled">
                   <span className="agentrow__title">{terminal.title}</span>
@@ -42,6 +45,11 @@ export function AgentPane({ terminals, activeId, onSelect, onClose }: PaneProps)
                 <span className="agentrow__name">{terminal.name}</span>
               )}
             </button>
+            {terminal.status && (
+              <span id={statusId} className={`agentrow__status agentrow__status--${terminal.status}`}>
+                {agentStatusText[terminal.status]}
+              </span>
+            )}
             <button
               type="button"
               className="agentrow__close"

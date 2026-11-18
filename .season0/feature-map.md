@@ -27,6 +27,8 @@ UI와 기능의 **정식 명칭** 사전입니다. Human과 AI가 동일한 명�
 | 에이전트 칸 | 하이어라키 사이드바 | 그 프로젝트의 터미널이 한 줄씩 보인다. 터미널이 없으면 "터미널이 없습니다" | `ui/src/ui/AgentPane.tsx`, 상태: `ui/src/features/terminals/terminalStore.ts`, 규칙: `ui/src/domain/terminals.ts` |
 | 터미널 줄 | 에이전트 칸 | 터미널 하나. 이름은 셸 이름과 번호("PowerShell 1"). 누르면 작업 영역이 그 터미널로 바뀐다. 에이전트가 돌고 있으면 에이전트 이름과 채운 점이 함께 보인다 | `ui/src/ui/AgentPane.tsx` |
 | 터미널 이름 | 터미널 줄 | 에이전트와 나누는 대화의 주제. 에이전트에게 첫 질문을 보내면 그 질문이, 에이전트가 주제를 알려 주면 그 주제가 줄의 큰 글자가 되고, 아래에 작은 글자로 "에이전트 · 셸 이름과 번호"가 보인다. 에이전트가 끝나면 없어진다. 앱이 켜져 있는 동안만 기억한다 | 규칙: `ui/src/domain/terminalNames.ts`, 상태: `ui/src/features/terminals/terminalStore.ts`, `ui/src/ui/AgentPane.tsx` |
+| 에이전트 상태 | 터미널 줄의 오른쪽 | 에이전트가 돌고 있는 줄에 보이는 글자와 점. "작업 중"(황토 점이 깜빡임), "입력 대기"(초록 점), "끝남"(황토 점과 황토 글자: 보고 있지 않은 사이에 작업을 마쳤고 아직 보지 않음). 에이전트가 없으면 없다 | 판단: `core/src/domain/terminal_rules.cpp`의 `advanceActivity`, 표시: `ui/src/ui/AgentPane.tsx`, 봤는지 기억: `ui/src/features/terminals/terminalStore.ts` |
+| 프로젝트 탭의 끝남 점 | 프로젝트 탭 | 그 프로젝트에 "끝남"인 터미널이 있으면 탭 이름 앞에 황토 점이 보인다. 그 터미널을 보면 사라진다 | `ui/src/ui/TitleBar.tsx` |
 | 터미널 닫기(×) | 터미널 줄 | 그 터미널을 닫는다. 실행 중인 프로그램이 있으면 닫기 확인 창이 먼저 뜬다 | `ui/src/ui/AgentPane.tsx` |
 | 새 터미널(+) | 에이전트 칸 제목 옆 | 터미널을 하나 더 띄운다. PowerShell 7로 뜨고, 뜨지 않으면 명령 프롬프트(cmd)로 뜬다 | `ui/src/ui/AgentPane.tsx` |
 | 파일 칸 | 하이어라키 사이드바 | 프로젝트 폴더의 내부 구조. 펼치기·접기, 선택, 끌어서 옮기기, 복사·잘라내기·붙여넣기, 이름 바꾸기, 지우기, 새로 만들기, 되돌리기 | `ui/src/ui/FilePane.tsx`, 상태: `ui/src/features/fileTree/fileTreeStore.ts`, 규칙: `ui/src/domain/fileTree.ts` |

@@ -36,6 +36,10 @@ export interface FakeTerminals {
   setAgent(id: string, agent: string): void;
   /** 터미널에서 프로그램이 돌고 있는(끝난) 것처럼 만든다 */
   setBusy(id: string, busy: boolean): void;
+  /** 에이전트가 작업을 시작한(멈춘) 것처럼 만든다 */
+  setWorking(id: string, working: boolean): void;
+  /** 에이전트가 작업 하나를 마치고 입력을 기다리는 것처럼 만든다 */
+  finishWork(id: string): void;
   /** 셸이 스스로 끝난 것처럼 만든다 (exit) */
   exit(id: string): void;
   /** 사용자가 앱 창의 닫기를 누른 것처럼 만든다 */
@@ -282,6 +286,8 @@ export function fakeCore(options: FakeCoreOptions): FakeCore {
         name: `${shellLabels[shellId]} ${number}`,
         agent: "",
         busy: false,
+        working: false,
+        finished: 0,
       };
       changeTerminals([...terminals, terminal]);
       return { ok: true, terminal };
@@ -459,7 +465,10 @@ export function fakeCore(options: FakeCoreOptions): FakeCore {
         pendingOutput.push({ id, bytes });
         wakeTerminals();
       },
-      setAgent: (id, agent) => patchTerminal(id, { agent, busy: agent !== "" }),
+      setAgent: (id, agent) => patchTerminal(id, { agent, busy: agent !== "", working: false, finished: 0 }),
+      setWorking: (id, working) => patchTerminal(id, { working }),
+      finishWork: (id) =>
+        patchTerminal(id, { working: false, finished: (terminals.find((terminal) => terminal.id === id)?.finished ?? 0) + 1 }),
       setBusy: (id, busy) => patchTerminal(id, { busy }),
       exit: (id) => changeTerminals(terminals.filter((terminal) => terminal.id !== id)),
       requestQuit() {

@@ -4,6 +4,7 @@ import type { TerminalsApi } from "../../data/apiClient";
 import { activeTab } from "../../domain/projectTabs";
 import { displayName, emptyNaming, followInput, questionFromLine, topicFromTitle, type TerminalNaming } from "../../domain/terminalNames";
 import {
+  agentStatusOf,
   terminalErrorMessage,
   type CloseQuestion,
   type ScreenFactory,
@@ -19,6 +20,8 @@ export interface TerminalSnapshot {
   terminals: TerminalRow[];
   /** 작업 영역에 보이는 터미널 */
   activeId: string | null;
+  /** 확인하지 않은 "끝남"이 있는 프로젝트 탭들 */
+  attentionTabs: string[];
   screen: TerminalScreen | null;
   /** 실행 중인 프로그램이 있어 닫기 전에 묻고 있는 것 */
   question: CloseQuestion | null;
@@ -54,6 +57,8 @@ export function createTerminalStore(api: TerminalsApi, tabs: ProjectTabsStore, c
   /** 방금 띄워 달라고 한 터미널. 목록에 나타나면 그 탭에서 보이게 한다 */
   const wantedByTab = new Map<string, string>();
   const errors = new Map<string, string>();
+  /** 터미널마다 사용자가 확인한 마친 작업 수. 이보다 많이 마쳤으면 "끝남"으로 보인다 */
+  const seenFinished = new Map<string, number>();
   /** 터미널마다 정해진 이름 (대화의 주제나 첫 질문) */
   const namings = new Map<string, TerminalNaming>();
 
@@ -66,14 +71,25 @@ export function createTerminalStore(api: TerminalsApi, tabs: ProjectTabsStore, c
   let snapshot: TerminalSnapshot = build();
 
   function build(): TerminalSnapshot {
+    const activeId = (tabId && activeByTab.get(tabId)) ?? null;
+    // 지금 보고 있는 터미널이 마친 작업은 확인한 것이다
+    for (const terminal of all) {
+      if (terminal.agent === "") seenFinished.delete(terminal.id);
+      else if (terminal.id === activeId || !seenFinished.has(terminal.id)) {
+        seenFinished.set(terminal.id, terminal.id === activeId ? terminal.finished : 0);
+      }
+    }
+    const statusOf = (terminal: TerminalInfo) => agentStatusOf(terminal, seenFinished.get(terminal.id) ?? 0);
     const terminals = (tabId ? all.filter((terminal) => terminal.tabId === tabId) : []).map((terminal) => ({
       ...terminal,
       title: terminal.agent ? displayName(namings.get(terminal.id)) : null,
+      status: statusOf(terminal),
     }));
-    const activeId = (tabId && activeByTab.get(tabId)) ?? null;
+    const attentionTabs = [...new Set(all.filter((terminal) => statusOf(terminal) === "finished").map((terminal) => terminal.tabId))];
     return {
       terminals,
       activeId,
+      attentionTabs,
       screen: activeId ? screenOf(activeId) : null,
       question,
       error: (tabId && errors.get(tabId)) ?? null,
@@ -182,6 +198,7 @@ export function createTerminalStore(api: TerminalsApi, tabs: ProjectTabsStore, c
       screens.delete(id);
       inputs.delete(id);
       namings.delete(id);
+      seenFinished.delete(id);
     }
 
     for (const [tab, id] of wantedByTab) {

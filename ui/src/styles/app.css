@@ -545,6 +545,56 @@ p {
   background: var(--acacia);
 }
 
+/* 에이전트 상태: 작업 중은 황토 점이 깜빡이고, 입력 대기는 초록 점, 끝남은 황토 점과 황토 글자 */
+.agentrow__dot--working {
+  border-color: var(--ochre);
+  background: var(--ochre);
+  animation: agent-working 1.2s ease-in-out infinite;
+}
+
+.agentrow__dot--finished {
+  border-color: var(--ochre);
+  background: var(--ochre);
+}
+
+@keyframes agent-working {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agentrow__dot--working {
+    animation: none;
+  }
+}
+
+.agentrow__status {
+  flex: none;
+  margin: 0 4px 0 6px;
+  color: var(--text-3);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.agentrow__status--working {
+  color: var(--text-2);
+}
+
+.agentrow__status--finished {
+  color: var(--ochre);
+  font-weight: 600;
+}
+
+/* 프로젝트 탭: 확인하지 않은 "끝남"이 있음 */
+.tab__attention {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ochre);
+}
+
 .agentrow__close {
   flex: none;
   width: 22px;

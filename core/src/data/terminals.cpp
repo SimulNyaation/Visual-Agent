@@ -57,7 +57,8 @@ std::vector<std::shared_ptr<Terminals::Entry>> Terminals::entriesOfTab(const std
 std::vector<TerminalView> Terminals::viewsLocked() const {
     std::vector<TerminalView> views;
     for (const auto& entry : entries_) {
-        views.push_back({entry->id, entry->tabId, entry->shellId, entry->name, entry->agent, entry->busy});
+        views.push_back({entry->id, entry->tabId, entry->shellId, entry->name, entry->agent, entry->busy,
+                         entry->activity.working, entry->activity.finished});
     }
     return views;
 }
@@ -102,7 +103,7 @@ std::optional<TerminalView> Terminals::open(const std::string& tabId,
     entry->reader = std::thread([this, entry] { readLoop(entry); });
     ++version_;
     changed_.notify_all();
-    return TerminalView{entry->id, entry->tabId, entry->shellId, entry->name, {}, false};
+    return TerminalView{entry->id, entry->tabId, entry->shellId, entry->name, {}, false, false, 0};
 }
 
 void Terminals::readLoop(const std::shared_ptr<Entry>& entry) {
@@ -113,6 +114,12 @@ void Terminals::readLoop(const std::shared_ptr<Entry>& entry) {
             return queuedBytes_ < kMostQueuedBytes || stopping_ || entry->closing;
         });
         if (stopping_) break;
+        // 사용자가 넣은 글자가 되비친 것이 아니면 에이전트가 작업하며 낸 출력으로 친다
+        const auto now = std::chrono::steady_clock::now();
+        if (!domain::isEchoOutput(entry->lastInput, now)) {
+            if (!domain::continuesBurst(entry->lastActivity, now)) entry->burstStart = now;
+            entry->lastActivity = now;
+        }
         // 닫는 중인 터미널의 출력은 자리가 없으면 버린다
         if (queuedBytes_ >= kMostQueuedBytes) continue;
 
@@ -170,24 +177,45 @@ void Terminals::monitorLoop() {
             const bool busy = domain::hasRunningProgram(processes, entry->pty->pid());
 
             std::lock_guard lock(mutex_);
-            if (entry->agent != agent || entry->busy != busy) {
+            // 에이전트가 막 실행된 때에는 그 전의 출력(셸의 것)을 작업으로 치지 않는다
+            if (entry->agent.empty() && !agent.empty()) {
+                entry->lastActivity.reset();
+                entry->burstStart.reset();
+            }
+            const domain::AgentActivity activity =
+                domain::advanceActivity(entry->activity, !agent.empty(), entry->burstStart,
+                                        entry->lastActivity, std::chrono::steady_clock::now());
+            if (entry->agent != agent || entry->busy != busy || entry->activity.working != activity.working ||
+                entry->activity.finished != activity.finished) {
                 entry->agent = agent;
                 entry->busy = busy;
+                entry->activity = activity;
                 ++version_;
                 changed_.notify_all();
+            } else {
+                entry->activity = activity;
             }
         }
     }
 }
 
+void Terminals::noteInput(const std::shared_ptr<Entry>& entry) {
+    std::lock_guard lock(mutex_);
+    entry->lastInput = std::chrono::steady_clock::now();
+}
+
 bool Terminals::write(const std::string& id, std::string_view bytes) {
     const auto entry = find(id);
-    return entry && entry->pty->write(bytes);
+    if (!entry) return false;
+    noteInput(entry);
+    return entry->pty->write(bytes);
 }
 
 bool Terminals::resize(const std::string& id, int columns, int rows) {
     const auto entry = find(id);
     if (!entry) return false;
+    // 크기가 바뀌면 안의 프로그램이 화면을 다시 그린다. 그 출력은 작업이 아니다
+    noteInput(entry);
     entry->pty->resize(clampSize(columns, 2, 500), clampSize(rows, 1, 300));
     return true;
 }
